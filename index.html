@@ -102,6 +102,15 @@
   }
   .chart-box .title { font-size: 12px; color: #7fa8a3; margin: 0 4px 8px; }
   .chart-empty { font-size: 12px; color: #4c6664; text-align: center; padding: 20px 0; }
+  .chart-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    touch-action: pan-x;
+    cursor: grab;
+  }
+  .chart-scroll:active { cursor: grabbing; }
+  .chart-scroll::-webkit-scrollbar { display: none; }
 
   /* ---- 履歴：カードリスト ---- */
   .rec-card {
@@ -280,7 +289,7 @@
 
   <header class="top">
     <div>
-      <h1>⛽ Fuelog <span class="ver">Ver.1.0</span></h1>
+      <h1>⛽ Fuelog <span class="ver">Ver.1.10</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
   </header>
@@ -315,6 +324,11 @@
     <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
       <span><span class="dot"></span><span id="backupText">未バックアップ</span></span>
       <span>↻</span>
+    </div>
+
+    <div class="backup-bar" id="importBar" style="display:none;" onclick="runMigrationImport()">
+      <span>📥 みんカラの過去データ（92件）を読み込む</span>
+      <span>›</span>
     </div>
   </section>
 
@@ -357,6 +371,11 @@
       <label>燃料単価（円/L）</label>
       <input type="number" id="fPrice" inputmode="decimal" placeholder="例）168">
     </div>
+    <div class="field">
+      <label>給油スタンド（任意）</label>
+      <input type="text" id="fStation" list="stationList" placeholder="例）ENEOS 津栄町SS" autocomplete="off">
+      <datalist id="stationList"></datalist>
+    </div>
     <div class="toggle-row">
       <span class="lb">満タン給油</span>
       <label class="switch">
@@ -386,14 +405,19 @@
 const STORAGE_KEY = 'fuelog_records';
 const DRIVE_FILE_ID_KEY = 'fuelog_drive_file_id';
 const DRIVE_LAST_BACKUP_KEY = 'fuelog_last_backup';
+const DRIVE_SNAPSHOT_KEY = 'fuelog_backup_snapshot';
 const CLIENT_ID = '835176944893-s1g4ve04l8th9fmu2sugq49rnenm34tt.apps.googleusercontent.com';
 const DRIVE_FOLDER_ID = '11NVDryMO2w1VQAyRkcgLqrrlWZ_5y9LD'; // アプリ開発/Fuelog（Google Drive）
 const DRIVE_FILE_NAME = 'fuelog_data.json';
+const MIGRATION_DONE_KEY = 'fuelog_migration_done';
+
+// みんカラ→Fuelio移行済みの92件（2023-09-30〜2026-09-22）。一度だけ読み込み用。
+// 単価が元データに無い18件は直前の単価で仮埋めし、スタンド名に「（単価は推定）」を付記。
+const MIGRATION_DATA = [{"id":"m001","date":"2023-09-30","odometer":212,"liters":37.4,"price":143,"station":"セルフステーション名張夏見","isFull":true},{"id":"m002","date":"2023-10-08","odometer":762,"liters":29.86,"price":140,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m003","date":"2023-10-18","odometer":1488,"liters":36.36,"price":140,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m004","date":"2023-10-27","odometer":2192,"liters":36.29,"price":137,"station":"セルフステーション名張夏見","isFull":true},{"id":"m005","date":"2023-11-09","odometer":2764,"liters":35.33,"price":137,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m006","date":"2023-11-24","odometer":3338,"liters":31.64,"price":137,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m007","date":"2023-12-02","odometer":3888,"liters":28.75,"price":135,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m008","date":"2023-12-04","odometer":4538,"liters":33.83,"price":135,"station":"（単価は推定）","isFull":true},{"id":"m009","date":"2023-12-04","odometer":4985,"liters":20.01,"price":135,"station":"セルフステーション名張夏見","isFull":true},{"id":"m010","date":"2023-12-16","odometer":5688,"liters":35.93,"price":135,"station":"セルフステーション名張夏見","isFull":true},{"id":"m011","date":"2023-12-26","odometer":6317,"liters":34.82,"price":135,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m012","date":"2024-01-04","odometer":6841,"liters":31.23,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m013","date":"2024-01-14","odometer":7338,"liters":27.81,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m014","date":"2024-01-26","odometer":7922,"liters":32.43,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m015","date":"2024-02-14","odometer":8381,"liters":29.86,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m016","date":"2024-03-01","odometer":8982,"liters":36.02,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m017","date":"2024-03-08","odometer":9597,"liters":33.26,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m018","date":"2024-03-17","odometer":10111,"liters":27.84,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m019","date":"2024-03-25","odometer":10613,"liters":29.42,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m020","date":"2024-04-06","odometer":11281,"liters":37.23,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m021","date":"2024-04-14","odometer":11941,"liters":34.66,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m022","date":"2024-04-29","odometer":12457,"liters":32.29,"price":140,"station":"セルフステーション名張夏見","isFull":true},{"id":"m023","date":"2024-05-11","odometer":12983,"liters":33.9,"price":140,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m024","date":"2024-05-23","odometer":13518,"liters":31.97,"price":142,"station":"セルフステーション名張夏見","isFull":true},{"id":"m025","date":"2024-06-02","odometer":14153,"liters":35.07,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m026","date":"2024-06-10","odometer":14739,"liters":32.05,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m027","date":"2024-06-21","odometer":15272,"liters":36.15,"price":142,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m028","date":"2024-07-01","odometer":15794,"liters":34.83,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m029","date":"2024-07-12","odometer":16377,"liters":36.22,"price":144,"station":"セルフステーション名張夏見","isFull":true},{"id":"m030","date":"2024-07-21","odometer":16924,"liters":36.54,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m031","date":"2024-07-28","odometer":17514,"liters":35.99,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m032","date":"2024-08-10","odometer":18030,"liters":36.5,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m033","date":"2024-08-27","odometer":18524,"liters":35.89,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m034","date":"2024-09-09","odometer":19018,"liters":34.63,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m035","date":"2024-09-15","odometer":19501,"liters":28.81,"price":144,"station":"セルフステーション名張夏見（単価は推定）","isFull":true},{"id":"m036","date":"2024-09-25","odometer":19947,"liters":26.7,"price":144,"station":"セルフステーション名張夏見（単価は推定）","isFull":true},{"id":"m037","date":"2024-10-05","odometer":20607,"liters":34.3,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m038","date":"2024-10-21","odometer":21262,"liters":36.63,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m039","date":"2024-11-04","odometer":21918,"liters":34.37,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m040","date":"2024-11-17","odometer":22546,"liters":36.82,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m041","date":"2024-11-29","odometer":23162,"liters":36.15,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m042","date":"2024-12-14","odometer":23767,"liters":36.45,"price":147,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m043","date":"2024-12-26","odometer":24403,"liters":37.83,"price":152,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m044","date":"2025-01-11","odometer":24964,"liters":39.15,"price":152,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m045","date":"2025-01-28","odometer":25661,"liters":41.3,"price":152,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m046","date":"2025-02-12","odometer":26127,"liters":33.22,"price":147,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m047","date":"2025-03-03","odometer":26655,"liters":34.74,"price":147,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m048","date":"2025-03-18","odometer":27212,"liters":33.81,"price":147,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m049","date":"2025-04-01","odometer":27859,"liters":38.43,"price":145,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m050","date":"2025-04-12","odometer":28577,"liters":38.82,"price":149,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m051","date":"2025-04-29","odometer":29150,"liters":34,"price":147,"station":"郡山SS","isFull":true},{"id":"m052","date":"2025-05-21","odometer":29719,"liters":37.59,"price":144,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m053","date":"2025-06-03","odometer":30306,"liters":34.55,"price":135,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m054","date":"2025-06-14","odometer":30977,"liters":37.16,"price":130,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m055","date":"2025-07-05","odometer":31507,"liters":37.31,"price":133,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m056","date":"2025-07-21","odometer":32027,"liters":33.67,"price":136,"station":"JASS-PORT都祁","isFull":true},{"id":"m057","date":"2025-07-30","odometer":32519,"liters":30.09,"price":136,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m058","date":"2025-08-06","odometer":33205,"liters":38.12,"price":136,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m059","date":"2025-08-20","odometer":33761,"liters":33.23,"price":136,"station":"郡山SS（単価は推定）","isFull":true},{"id":"m060","date":"2025-09-03","odometer":34227,"liters":30.12,"price":135,"station":"JASS-PORT桜井","isFull":true},{"id":"m061","date":"2025-09-15","odometer":34836,"liters":33.88,"price":135,"station":"JASS-PORT都祁（単価は推定）","isFull":true},{"id":"m062","date":"2025-10-01","odometer":35416,"liters":35.75,"price":137,"station":"JASS-PORT都祁","isFull":true},{"id":"m063","date":"2025-10-22","odometer":35949,"liters":36.15,"price":137,"station":"JASS-PORT都祁","isFull":true},{"id":"m064","date":"2025-11-05","odometer":36479,"liters":32.71,"price":135,"station":"JASS-PORT都祁","isFull":true},{"id":"m065","date":"2025-11-16","odometer":36885,"liters":20,"price":130,"station":"JASS-PORT都祁","isFull":true},{"id":"m066","date":"2025-11-26","odometer":37169,"liters":20.52,"price":132,"station":"JASS-PORT桜井","isFull":true},{"id":"m067","date":"2025-12-06","odometer":37672,"liters":29.57,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m068","date":"2025-12-18","odometer":38026,"liters":22.17,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m069","date":"2026-01-03","odometer":38485,"liters":32.4,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m070","date":"2026-01-14","odometer":38839,"liters":26.19,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m071","date":"2026-02-02","odometer":39337,"liters":36.44,"price":123,"station":"JASS-PORT桜井","isFull":true},{"id":"m072","date":"2026-02-26","odometer":39842,"liters":36.44,"price":126,"station":"JASS-PORT桜井","isFull":true},{"id":"m073","date":"2026-03-11","odometer":40281,"liters":28.52,"price":131,"station":"JASS-PORT桜井","isFull":true},{"id":"m074","date":"2026-03-23","odometer":40903,"liters":36.89,"price":148,"station":"セルフステーション名張夏見","isFull":true},{"id":"m075","date":"2026-04-01","odometer":41274,"liters":23.22,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m076","date":"2026-04-10","odometer":41689,"liters":25.37,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m077","date":"2026-04-23","odometer":42168,"liters":28.57,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m078","date":"2026-04-29","odometer":42594,"liters":23.73,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m079","date":"2026-05-11","odometer":43125,"liters":33.72,"price":143,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m080","date":"2026-05-16","odometer":43845,"liters":33.21,"price":148,"station":"新居浜坂井SS","isFull":true},{"id":"m081","date":"2026-05-18","odometer":44387,"liters":30.1,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m082","date":"2026-05-30","odometer":44917,"liters":34.73,"price":143,"station":"JASS-PORT都祁","isFull":true},{"id":"m083","date":"2026-06-10","odometer":45504,"liters":37.57,"price":142,"station":"JASS-PORT桜井","isFull":true},{"id":"m084","date":"2026-06-28","odometer":46042,"liters":35.58,"price":143,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m085","date":"2026-07-06","odometer":46384,"liters":23.45,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m086","date":"2026-07-15","odometer":47097,"liters":38.39,"price":142,"station":"JASS-PORT桜井","isFull":true},{"id":"m087","date":"2026-07-25","odometer":47670,"liters":35.54,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m088","date":"2026-07-31","odometer":48206,"liters":31.45,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m089","date":"2026-08-14","odometer":48778,"liters":35.47,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m090","date":"2026-08-20","odometer":49426,"liters":39.02,"price":145,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m091","date":"2026-09-07","odometer":50656,"liters":33.49,"price":145,"station":"JASS-PORT都祁（単価は推定）","isFull":true},{"id":"m092","date":"2026-09-22","odometer":51248,"liters":37.05,"price":144,"station":"スーパーセルフ名張SS","isFull":true}];
 
 let records = loadRecords();
 let editingId = null;
 let tokenClient = null;
-let backupOK = false;
 
 /* ---------- 基本ユーティリティ ---------- */
 function loadRecords() {
@@ -438,6 +462,12 @@ function switchTab(name) {
   document.getElementById('view-history').classList.toggle('active', name === 'history');
   document.getElementById('tabHomeBtn').classList.toggle('active', name === 'home');
   document.getElementById('tabHistoryBtn').classList.toggle('active', name === 'history');
+  if (name === 'history') {
+    // 履歴タブが非表示の間はグラフの幅が0扱いになり、直近位置へのスクロールがずれてしまうため
+    // タブを開いたタイミングで改めて右端（直近）へ合わせ直す
+    const scrollEl = document.getElementById('chartScroll');
+    if (scrollEl) requestAnimationFrame(() => { scrollEl.scrollLeft = scrollEl.scrollWidth; });
+  }
 }
 
 /* ---------- ホーム画面描画 ---------- */
@@ -481,7 +511,7 @@ function renderHistory() {
         <div class="left">
           <div class="date">${r.date}${r.isFull ? '<span class="badge">満タン</span>' : ''}</div>
           <div class="row1">${fmtNum(r.odometer)} km${r.distance !== null ? `（+${fmtNum(r.distance)}km）` : ''}</div>
-          <div class="row2">${fmtNum(r.liters,1)} L ・ ${fmtNum(r.price)} 円/L ・ ${fmtNum(r.totalCost)} 円</div>
+          <div class="row2">${fmtNum(r.liters,1)} L ・ ${fmtNum(r.price)} 円/L ・ ${fmtNum(r.totalCost)} 円${r.station ? ` ・ ${r.station}` : ''}</div>
         </div>
         <div class="right">
           ${r.economy !== null
@@ -495,37 +525,91 @@ function renderHistory() {
   renderChart(enriched.filter(r => r.economy !== null));
 }
 
+const CHART_VISIBLE_POINTS = 10; // 画面に一度に出す件数（それより前は横スクロールで見る）
+const CHART_SPACING = 34; // 1件あたりの横幅(px)
+
 function renderChart(points) {
   const wrap = document.getElementById('chartWrap');
   if (points.length < 2) {
     wrap.innerHTML = `<div class="chart-empty">満タン給油のデータが2件以上たまるとグラフが表示されます</div>`;
     return;
   }
-  const W = 320, H = 110, PAD = 10;
+  const H = 110, PAD_Y = 10, PAD_X = 16;
   const vals = points.map(p => p.economy);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = (max - min) || 1;
-  const stepX = (W - PAD*2) / (points.length - 1);
-  const coords = points.map((p,i) => {
-    const x = PAD + i * stepX;
-    const y = H - PAD - ((p.economy - min) / range) * (H - PAD*2);
-    return [x,y];
+  const W = Math.max(CHART_VISIBLE_POINTS * CHART_SPACING, PAD_X * 2 + (points.length - 1) * CHART_SPACING);
+  const coords = points.map((p, i) => {
+    const x = PAD_X + i * CHART_SPACING;
+    const y = H - PAD_Y - ((p.economy - min) / range) * (H - PAD_Y * 2);
+    return [x, y];
   });
   const path = coords.map((c,i) => (i===0?'M':'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
-  const dots = coords.map(c => `<circle cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="3" fill="#2fd3ae"/>`).join('');
+  const dots = coords.map((c,i) => `<circle cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="3" fill="#2fd3ae"/>` +
+    `<text x="${c[0].toFixed(1)}" y="${(c[1]-8).toFixed(1)}" font-size="9" fill="#7fa8a3" text-anchor="middle">${fmtNum(points[i].economy,1)}</text>`).join('');
   wrap.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:${H}px;" preserveAspectRatio="none">
-      <path d="${path}" fill="none" stroke="#2fd3ae" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-      ${dots}
-    </svg>
-    <div style="display:flex; justify-content:space-between; font-size:11px; color:#5c807c; padding:0 4px 4px;">
+    <div class="chart-scroll" id="chartScroll">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;">
+        <path d="${path}" fill="none" stroke="#2fd3ae" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+      </svg>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:11px; color:#5c807c; padding:4px 4px 4px;">
       <span>${fmtNum(min,1)} km/L</span><span>${fmtNum(max,1)} km/L</span>
     </div>`;
+  // 初期表示は右端（直近）が見える位置までスクロールしておく
+  // ※innerHTML直後だとレイアウト確定前でscrollWidthがずれることがあるのでrAFで1テンポ置く
+  const scrollEl = document.getElementById('chartScroll');
+  requestAnimationFrame(() => { scrollEl.scrollLeft = scrollEl.scrollWidth; });
+}
+
+/* PCのマウスでも横スクロールできるように（ドラッグ／ホイール）。
+   chartWrapの中身は毎回作り直すので、消えないchartWrap自体にイベントを1回だけ仕込んで委譲する */
+let chartDrag = { active: false, startX: 0, startScroll: 0, el: null };
+function enableChartDrag() {
+  const wrap = document.getElementById('chartWrap');
+  wrap.addEventListener('pointerdown', (e) => {
+    const scrollEl = e.target.closest('.chart-scroll');
+    if (!scrollEl) return;
+    chartDrag = { active: true, startX: e.clientX, startScroll: scrollEl.scrollLeft, el: scrollEl };
+    scrollEl.setPointerCapture(e.pointerId);
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!chartDrag.active) return;
+    chartDrag.el.scrollLeft = chartDrag.startScroll - (e.clientX - chartDrag.startX);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev =>
+    wrap.addEventListener(ev, () => { chartDrag.active = false; })
+  );
+  wrap.addEventListener('wheel', (e) => {
+    const scrollEl = e.target.closest('.chart-scroll');
+    if (!scrollEl) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      scrollEl.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  }, { passive: false });
 }
 
 function renderAll() {
   renderHome();
   renderHistory();
+  renderImportBar();
+}
+
+/* ---------- みんカラ過去データの一括インポート（一度きり） ---------- */
+function renderImportBar() {
+  const bar = document.getElementById('importBar');
+  bar.style.display = localStorage.getItem(MIGRATION_DONE_KEY) ? 'none' : 'flex';
+}
+function runMigrationImport() {
+  const ok = confirm(`現在の記録（${records.length}件）をすべて消して、みんカラの過去データ92件を読み込みます。\nよろしいですか？`);
+  if (!ok) return;
+  records = MIGRATION_DATA.map(r => ({ ...r }));
+  persistLocal();
+  localStorage.setItem(MIGRATION_DONE_KEY, '1');
+  renderAll();
+  showToast('92件読み込みました（ホーム画面のバックアップ帯をタップして送信してください）');
 }
 
 /* ---------- 入力フォーム ---------- */
@@ -540,6 +624,7 @@ function openForm(id) {
     document.getElementById('fOdo').value = r.odometer;
     document.getElementById('fLiters').value = r.liters;
     document.getElementById('fPrice').value = r.price;
+    document.getElementById('fStation').value = r.station || '';
     document.getElementById('fFull').checked = r.isFull;
     deleteRow.style.display = 'block';
   } else {
@@ -548,11 +633,32 @@ function openForm(id) {
     document.getElementById('fOdo').value = '';
     document.getElementById('fLiters').value = '';
     document.getElementById('fPrice').value = '';
+    document.getElementById('fStation').value = '';
     document.getElementById('fFull').checked = true;
     deleteRow.style.display = 'none';
   }
+  updateStationList();
   updatePreview();
   overlay.classList.add('show');
+  // 開いた直後に走行距離欄へフォーカス（編集時は中身を選択状態にして打ち直しやすく）
+  const odoInput = document.getElementById('fOdo');
+  requestAnimationFrame(() => {
+    odoInput.focus();
+    if (editingId) odoInput.select();
+  });
+}
+function updateStationList() {
+  // 使用回数が多い順にプルダウン候補を並べる（同数なら最近使った方を優先）
+  const freq = {};
+  const lastUsed = {};
+  records.forEach(r => {
+    const name = (r.station || '').trim();
+    if (!name) return;
+    freq[name] = (freq[name] || 0) + 1;
+    if (!lastUsed[name] || r.date > lastUsed[name]) lastUsed[name] = r.date;
+  });
+  const names = Object.keys(freq).sort((a,b) => (freq[b]-freq[a]) || (lastUsed[b] > lastUsed[a] ? 1 : -1));
+  document.getElementById('stationList').innerHTML = names.map(n => `<option value="${n}">`).join('');
 }
 function closeForm() {
   document.getElementById('modalOverlay').classList.remove('show');
@@ -581,6 +687,7 @@ function saveForm() {
   const odo = parseFloat(document.getElementById('fOdo').value);
   const liters = parseFloat(document.getElementById('fLiters').value);
   const price = parseFloat(document.getElementById('fPrice').value);
+  const station = document.getElementById('fStation').value.trim();
   const isFull = document.getElementById('fFull').checked;
 
   if (!date || isNaN(odo) || isNaN(liters) || isNaN(price) || liters <= 0 || price <= 0) {
@@ -590,15 +697,14 @@ function saveForm() {
 
   if (editingId) {
     const r = records.find(r => r.id === editingId);
-    Object.assign(r, { date, odometer: odo, liters, price, isFull });
+    Object.assign(r, { date, odometer: odo, liters, price, station, isFull });
   } else {
-    records.push({ id: 'r' + Date.now() + Math.random().toString(16).slice(2,6), date, odometer: odo, liters, price, isFull });
+    records.push({ id: 'r' + Date.now() + Math.random().toString(16).slice(2,6), date, odometer: odo, liters, price, station, isFull });
   }
   persistLocal();
   closeForm();
   renderAll();
   showToast('保存しました');
-  attemptBackup(false);
 }
 
 function deleteCurrent() {
@@ -608,10 +714,14 @@ function deleteCurrent() {
   closeForm();
   renderAll();
   showToast('削除しました');
-  attemptBackup(false);
 }
 
 /* ---------- Google Drive バックアップ ---------- */
+// 一度取れたアクセストークンは有効期限（だいたい1時間）内なら使い回す。
+// これが無いと保存のたびに毎回Google認証をやり直してしまい、アカウント選択が連発してしまう。
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+
 function initGoogle() {
   if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -619,8 +729,12 @@ function initGoogle() {
     scope: 'https://www.googleapis.com/auth/drive.file',
     callback: async (resp) => {
       if (resp.error) { onBackupResult(false); return; }
+      cachedToken = resp.access_token;
+      // expires_in（秒）が返ってこない場合は安全側で50分として扱う
+      const expiresInMs = (resp.expires_in ? Number(resp.expires_in) : 3000) * 1000;
+      cachedTokenExpiry = Date.now() + expiresInMs - 60000; // 60秒の余裕を持たせる
       try {
-        await driveUpload(resp.access_token);
+        await driveUpload(cachedToken);
         onBackupResult(true);
       } catch (e) { onBackupResult(false); }
     }
@@ -628,7 +742,17 @@ function initGoogle() {
   renderBackupStatus();
 }
 
-function attemptBackup(interactive) {
+async function attemptBackup(interactive) {
+  // 有効なトークンをまだ持っているなら、手動タップのときも認証をすっ飛ばしてそのままアップロードする
+  // （このアプリは自動バックアップをやめて「タップした時だけ送る」方式にしたので、
+  //   同じセッション内で何度かタップしても毎回アカウント選択が出ないようにするための措置）
+  if (cachedToken && Date.now() < cachedTokenExpiry) {
+    try {
+      await driveUpload(cachedToken);
+      onBackupResult(true);
+    } catch (e) { onBackupResult(false); }
+    return;
+  }
   if (!tokenClient) { renderBackupStatus(true); return; }
   try {
     tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
@@ -675,8 +799,13 @@ async function driveUpload(token) {
 }
 
 function onBackupResult(ok) {
-  backupOK = ok;
-  if (ok) localStorage.setItem(DRIVE_LAST_BACKUP_KEY, new Date().toISOString());
+  if (ok) {
+    localStorage.setItem(DRIVE_LAST_BACKUP_KEY, new Date().toISOString());
+    localStorage.setItem(DRIVE_SNAPSHOT_KEY, JSON.stringify(records));
+    showToast('バックアップ完了');
+  } else {
+    showToast('バックアップに失敗しました');
+  }
   renderBackupStatus();
 }
 
@@ -684,12 +813,15 @@ function renderBackupStatus(needAuth) {
   const bar = document.getElementById('backupBar');
   const text = document.getElementById('backupText');
   const last = localStorage.getItem(DRIVE_LAST_BACKUP_KEY);
+  // 「同期済みか」はメモリ上のフラグではなく、最後に成功した内容と今の記録を突き合わせて判定
+  // （ページを開き直してもJS変数はリセットされるため、これなら再読み込み後も正しく表示できる）
+  const synced = localStorage.getItem(DRIVE_SNAPSHOT_KEY) === JSON.stringify(records);
   if (needAuth) {
     bar.classList.add('err');
     text.textContent = 'タップしてGoogleドライブと連携';
     return;
   }
-  if (backupOK && last) {
+  if (synced && last) {
     bar.classList.remove('err');
     const d = new Date(last);
     text.textContent = `最終バックアップ：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -709,6 +841,7 @@ document.getElementById('fOdo').addEventListener('input', updatePreview);
 document.getElementById('fLiters').addEventListener('input', updatePreview);
 document.getElementById('fPrice').addEventListener('input', updatePreview);
 
+enableChartDrag();
 renderAll();
 renderBackupStatus();
 window.addEventListener('load', initGoogle);
