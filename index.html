@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Fuelog</title>
+<meta name="theme-color" content="#0c1b1d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fuelog">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { background: #0c1b1d; height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
+    background: #0c1b1d;
+    color: #e6f1f0;
+    display: flex;
+    justify-content: center;
+    padding-bottom: 90px;
+  }
+  .app { width: 100%; max-width: 480px; padding: 20px 14px 20px; }
+
+  /* ---- ヘッダー ---- */
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  header.top h1 {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 0;
+    color: #7fe0d3;
+    letter-spacing: 0.5px;
+  }
+  header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
+  .car-name { font-size: 12px; color: #8fa6a4; }
+
+  /* ---- タブ本体 ---- */
+  .view { display: none; }
+  .view.active { display: block; animation: fade .15s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+
+  /* ---- サマリーカード（ホーム） ---- */
+  .car-card {
+    background: linear-gradient(135deg, #123338, #0e2427);
+    border: 1px solid #1c4247;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .car-card .label { font-size: 12px; color: #7fa8a3; margin-bottom: 2px; }
+  .car-card .value { font-size: 26px; font-weight: 700; color: #ffffff; }
+  .car-card .value .unit { font-size: 14px; font-weight: 400; color: #9fc7c1; margin-left: 4px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat {
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .stat .label { font-size: 11px; color: #7fa8a3; margin-bottom: 6px; }
+  .stat .value { font-size: 20px; font-weight: 700; color: #eafffb; }
+  .stat .value .unit { font-size: 11px; font-weight: 400; color: #7fa8a3; margin-left: 3px; }
+  .stat .sub { font-size: 11px; color: #5c807c; margin-top: 4px; }
+
+  .backup-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #6f9793;
+    background: #0f2427;
+    border: 1px dashed #1d3a3e;
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+  .backup-bar.err { color: #f0b090; border-color: #6a3c22; }
+  .backup-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: #2fd3ae; margin-right: 6px; display:inline-block; }
+  .backup-bar.err .dot { background: #e08a4a; }
+
+  /* ---- 履歴：チャート ---- */
+  .chart-box {
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    border-radius: 14px;
+    padding: 14px 10px 6px;
+    margin-bottom: 14px;
+  }
+  .chart-box .title { font-size: 12px; color: #7fa8a3; margin: 0 4px 8px; }
+  .chart-empty { font-size: 12px; color: #4c6664; text-align: center; padding: 20px 0; }
+
+  /* ---- 履歴：カードリスト ---- */
+  .rec-card {
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .rec-card .left .date { font-size: 12px; color: #7fa8a3; }
+  .rec-card .left .row1 { font-size: 16px; font-weight: 700; color: #eafffb; margin-top: 2px; }
+  .rec-card .left .row2 { font-size: 12px; color: #7fa8a3; margin-top: 4px; }
+  .rec-card .badge {
+    font-size: 10px;
+    background: #143a35;
+    color: #6ce0c4;
+    border-radius: 8px;
+    padding: 2px 6px;
+    margin-left: 6px;
+  }
+  .rec-card .right { text-align: right; }
+  .rec-card .right .eco { font-size: 20px; font-weight: 700; color: #7fe0d3; }
+  .rec-card .right .eco .unit { font-size: 11px; color: #7fa8a3; }
+  .rec-card .right .eco.none { font-size: 12px; color: #4c6664; font-weight: 400; }
+  .empty-note { font-size: 13px; color: #5c807c; text-align: center; padding: 40px 10px; line-height: 1.7; }
+
+  /* ---- 下部タブバー ---- */
+  nav.tabbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    display: flex;
+    justify-content: center;
+    background: #0f2427;
+    border-top: 1px solid #1d3a3e;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index: 5;
+  }
+  nav.tabbar .inner { width: 100%; max-width: 480px; display: flex; }
+  nav.tabbar button {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #5c807c;
+    font-size: 12px;
+    padding: 6px 0 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  nav.tabbar button .ic { font-size: 20px; }
+  nav.tabbar button.active { color: #7fe0d3; }
+
+  /* ---- FAB ---- */
+  .fab {
+    position: fixed;
+    right: calc(50% - 240px + 18px);
+    bottom: 78px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2fd3ae, #1a9c8a);
+    color: #05201c;
+    border: none;
+    font-size: 28px;
+    line-height: 56px;
+    text-align: center;
+    box-shadow: 0 6px 16px rgba(0,0,0,.4);
+    z-index: 6;
+  }
+  @media (max-width: 516px) { .fab { right: 18px; } }
+
+  /* ---- モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(4,12,13,.72);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 20;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 480px;
+    background: #0f2427;
+    border-radius: 20px 20px 0 0;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    max-height: 88dvh;
+    overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; color: #eafffb; margin: 0 0 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: #7fa8a3; margin-bottom: 6px; }
+  .field input {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 16px;
+    color: #eafffb;
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    border-radius: 10px;
+  }
+  .field input:focus { outline: none; border-color: #2fd3ae; }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+  .toggle-row .lb { font-size: 14px; color: #eafffb; }
+  .switch { position: relative; width: 46px; height: 26px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute; inset: 0; background: #2a4448; border-radius: 20px; transition: .15s;
+  }
+  .switch .slider::before {
+    content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px;
+    background: #cfe8e4; border-radius: 50%; transition: .15s;
+  }
+  .switch input:checked + .slider { background: #1a9c8a; }
+  .switch input:checked + .slider::before { transform: translateX(20px); background: #fff; }
+
+  .calc-preview {
+    background: #0d1e20;
+    border: 1px dashed #1d3a3e;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #7fa8a3;
+    margin-bottom: 18px;
+    line-height: 1.8;
+  }
+  .calc-preview b { color: #eafffb; }
+
+  .modal-actions { display: flex; gap: 10px; }
+  .btn {
+    flex: 1;
+    padding: 13px 0;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .btn.primary { background: #2fd3ae; color: #05201c; }
+  .btn.ghost { background: #12262a; color: #9fc7c1; border: 1px solid #1d3a3e; }
+  .btn.danger { background: #3a1b16; color: #e08a4a; border: 1px solid #5a2c1f; }
+  .modal-actions-row2 { margin-top: 10px; }
+
+  .toast {
+    position: fixed;
+    left: 50%; bottom: 100px;
+    transform: translateX(-50%);
+    background: #12262a;
+    border: 1px solid #1d3a3e;
+    color: #eafffb;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+    z-index: 30;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div>
+      <h1>⛽ Fuelog <span class="ver">Ver.1.0</span></h1>
+      <div class="car-name">MAZDA2</div>
+    </div>
+  </header>
+
+  <!-- ============ ホーム ============ -->
+  <section id="view-home" class="view active">
+    <div class="car-card">
+      <div class="label">現在の走行距離</div>
+      <div class="value" id="homeOdo">--<span class="unit">km</span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="stat">
+        <div class="label">平均燃費</div>
+        <div class="value" id="homeAvgEco">--<span class="unit">km/L</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">給油回数</div>
+        <div class="value" id="homeCount">--<span class="unit">回</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">前回の給油</div>
+        <div class="value" id="homeLastDate" style="font-size:16px;">--</div>
+        <div class="sub" id="homeLastAgo"></div>
+      </div>
+      <div class="stat">
+        <div class="label">今月の給油額</div>
+        <div class="value" id="homeMonthCost">--<span class="unit">円</span></div>
+      </div>
+    </div>
+
+    <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
+      <span><span class="dot"></span><span id="backupText">未バックアップ</span></span>
+      <span>↻</span>
+    </div>
+  </section>
+
+  <!-- ============ 履歴 ============ -->
+  <section id="view-history" class="view">
+    <div class="chart-box">
+      <div class="title">燃費の推移（km/L）</div>
+      <div id="chartWrap"><div class="chart-empty">まだ満タン給油のデータがありません</div></div>
+    </div>
+    <div id="recordList"></div>
+  </section>
+
+  <button class="fab" onclick="openForm()">＋</button>
+
+  <nav class="tabbar">
+    <div class="inner">
+      <button id="tabHomeBtn" class="active" onclick="switchTab('home')"><span class="ic">🏠</span>ホーム</button>
+      <button id="tabHistoryBtn" onclick="switchTab('history')"><span class="ic">📖</span>履歴</button>
+    </div>
+  </nav>
+</div>
+
+<!-- ============ 入力モーダル ============ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">給油を記録</h2>
+    <div class="field">
+      <label>日付</label>
+      <input type="date" id="fDate">
+    </div>
+    <div class="field">
+      <label>総走行距離（オドメーター・km）</label>
+      <input type="number" id="fOdo" inputmode="decimal" placeholder="例）42150">
+    </div>
+    <div class="field">
+      <label>給油量（L）</label>
+      <input type="number" id="fLiters" inputmode="decimal" placeholder="例）28.5">
+    </div>
+    <div class="field">
+      <label>燃料単価（円/L）</label>
+      <input type="number" id="fPrice" inputmode="decimal" placeholder="例）168">
+    </div>
+    <div class="toggle-row">
+      <span class="lb">満タン給油</span>
+      <label class="switch">
+        <input type="checkbox" id="fFull" checked onchange="updatePreview()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="calc-preview" id="calcPreview">区間距離・金額はここに自動計算表示されます</div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeForm()">キャンセル</button>
+      <button class="btn primary" onclick="saveForm()">保存</button>
+    </div>
+    <div class="modal-actions-row2" id="deleteRow" style="display:none;">
+      <button class="btn danger" style="width:100%;" onclick="deleteCurrent()">この記録を削除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   Fuelog V1.0 — 2026-09-24
+   保存: localStorage（確実に先に保存） → 裏でGoogle Driveへバックアップ
+   ========================================================= */
+
+const STORAGE_KEY = 'fuelog_records';
+const DRIVE_FILE_ID_KEY = 'fuelog_drive_file_id';
+const DRIVE_LAST_BACKUP_KEY = 'fuelog_last_backup';
+const CLIENT_ID = '835176944893-s1g4ve04l8th9fmu2sugq49rnenm34tt.apps.googleusercontent.com';
+const DRIVE_FOLDER_ID = '11NVDryMO2w1VQAyRkcgLqrrlWZ_5y9LD'; // アプリ開発/Fuelog（Google Drive）
+const DRIVE_FILE_NAME = 'fuelog_data.json';
+
+let records = loadRecords();
+let editingId = null;
+let tokenClient = null;
+let backupOK = false;
+
+/* ---------- 基本ユーティリティ ---------- */
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch (e) { return []; }
+}
+function persistLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+function byOdoAsc(a, b) { return a.odometer - b.odometer; }
+function fmtNum(n, digits = 0) {
+  if (n === null || n === undefined || isNaN(n)) return '--';
+  return n.toLocaleString('ja-JP', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+}
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- 計算（オドメーター順に並べて前回との差分を出す） ---------- */
+function computeEnriched() {
+  const sorted = [...records].sort(byOdoAsc);
+  let prevOdo = null;
+  return sorted.map(r => {
+    const distance = prevOdo === null ? null : r.odometer - prevOdo;
+    const totalCost = r.liters * r.price;
+    const economy = (r.isFull && distance !== null && distance > 0) ? distance / r.liters : null;
+    prevOdo = r.odometer;
+    return { ...r, distance, totalCost, economy };
+  });
+}
+
+/* ---------- タブ切り替え ---------- */
+function switchTab(name) {
+  document.getElementById('view-home').classList.toggle('active', name === 'home');
+  document.getElementById('view-history').classList.toggle('active', name === 'history');
+  document.getElementById('tabHomeBtn').classList.toggle('active', name === 'home');
+  document.getElementById('tabHistoryBtn').classList.toggle('active', name === 'history');
+}
+
+/* ---------- ホーム画面描画 ---------- */
+function renderHome() {
+  const enriched = computeEnriched();
+  const latest = enriched[enriched.length - 1];
+
+  document.getElementById('homeOdo').innerHTML = latest ? `${fmtNum(latest.odometer)}<span class="unit">km</span>` : `--<span class="unit">km</span>`;
+
+  const ecoList = enriched.filter(r => r.economy !== null).map(r => r.economy);
+  const avgEco = ecoList.length ? ecoList.reduce((a,b)=>a+b,0) / ecoList.length : null;
+  document.getElementById('homeAvgEco').innerHTML = avgEco !== null ? `${fmtNum(avgEco,1)}<span class="unit">km/L</span>` : `--<span class="unit">km/L</span>`;
+
+  document.getElementById('homeCount').innerHTML = `${fmtNum(records.length)}<span class="unit">回</span>`;
+
+  if (latest) {
+    document.getElementById('homeLastDate').textContent = latest.date;
+    const days = Math.floor((new Date(todayStr()) - new Date(latest.date)) / 86400000);
+    document.getElementById('homeLastAgo').textContent = days === 0 ? '今日' : days > 0 ? `${days}日前` : '';
+  } else {
+    document.getElementById('homeLastDate').textContent = '--';
+    document.getElementById('homeLastAgo').textContent = '';
+  }
+
+  const ym = todayStr().slice(0,7);
+  const monthCost = enriched.filter(r => r.date && r.date.slice(0,7) === ym).reduce((a,r)=>a+r.totalCost,0);
+  document.getElementById('homeMonthCost').innerHTML = `${fmtNum(monthCost)}<span class="unit">円</span>`;
+}
+
+/* ---------- 履歴画面描画 ---------- */
+function renderHistory() {
+  const enriched = computeEnriched();
+  const listDesc = [...enriched].reverse(); // 新しい記録が上
+  const listEl = document.getElementById('recordList');
+
+  if (!listDesc.length) {
+    listEl.innerHTML = `<div class="empty-note">まだ記録がありません。<br>右下の「＋」から給油を記録してみてください。</div>`;
+  } else {
+    listEl.innerHTML = listDesc.map(r => `
+      <div class="rec-card" onclick="openForm('${r.id}')">
+        <div class="left">
+          <div class="date">${r.date}${r.isFull ? '<span class="badge">満タン</span>' : ''}</div>
+          <div class="row1">${fmtNum(r.odometer)} km${r.distance !== null ? `（+${fmtNum(r.distance)}km）` : ''}</div>
+          <div class="row2">${fmtNum(r.liters,1)} L ・ ${fmtNum(r.price)} 円/L ・ ${fmtNum(r.totalCost)} 円</div>
+        </div>
+        <div class="right">
+          ${r.economy !== null
+            ? `<div class="eco">${fmtNum(r.economy,1)}<span class="unit">km/L</span></div>`
+            : `<div class="eco none">燃費計算<br>対象外</div>`}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderChart(enriched.filter(r => r.economy !== null));
+}
+
+function renderChart(points) {
+  const wrap = document.getElementById('chartWrap');
+  if (points.length < 2) {
+    wrap.innerHTML = `<div class="chart-empty">満タン給油のデータが2件以上たまるとグラフが表示されます</div>`;
+    return;
+  }
+  const W = 320, H = 110, PAD = 10;
+  const vals = points.map(p => p.economy);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || 1;
+  const stepX = (W - PAD*2) / (points.length - 1);
+  const coords = points.map((p,i) => {
+    const x = PAD + i * stepX;
+    const y = H - PAD - ((p.economy - min) / range) * (H - PAD*2);
+    return [x,y];
+  });
+  const path = coords.map((c,i) => (i===0?'M':'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
+  const dots = coords.map(c => `<circle cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="3" fill="#2fd3ae"/>`).join('');
+  wrap.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:${H}px;" preserveAspectRatio="none">
+      <path d="${path}" fill="none" stroke="#2fd3ae" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+    </svg>
+    <div style="display:flex; justify-content:space-between; font-size:11px; color:#5c807c; padding:0 4px 4px;">
+      <span>${fmtNum(min,1)} km/L</span><span>${fmtNum(max,1)} km/L</span>
+    </div>`;
+}
+
+function renderAll() {
+  renderHome();
+  renderHistory();
+}
+
+/* ---------- 入力フォーム ---------- */
+function openForm(id) {
+  editingId = id || null;
+  const overlay = document.getElementById('modalOverlay');
+  const deleteRow = document.getElementById('deleteRow');
+  if (editingId) {
+    const r = records.find(r => r.id === editingId);
+    document.getElementById('modalTitle').textContent = '記録を編集';
+    document.getElementById('fDate').value = r.date;
+    document.getElementById('fOdo').value = r.odometer;
+    document.getElementById('fLiters').value = r.liters;
+    document.getElementById('fPrice').value = r.price;
+    document.getElementById('fFull').checked = r.isFull;
+    deleteRow.style.display = 'block';
+  } else {
+    document.getElementById('modalTitle').textContent = '給油を記録';
+    document.getElementById('fDate').value = todayStr();
+    document.getElementById('fOdo').value = '';
+    document.getElementById('fLiters').value = '';
+    document.getElementById('fPrice').value = '';
+    document.getElementById('fFull').checked = true;
+    deleteRow.style.display = 'none';
+  }
+  updatePreview();
+  overlay.classList.add('show');
+}
+function closeForm() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+function updatePreview() {
+  const odo = parseFloat(document.getElementById('fOdo').value);
+  const liters = parseFloat(document.getElementById('fLiters').value);
+  const price = parseFloat(document.getElementById('fPrice').value);
+  const isFull = document.getElementById('fFull').checked;
+  const preview = document.getElementById('calcPreview');
+
+  const others = records.filter(r => r.id !== editingId).sort(byOdoAsc);
+  let prev = null;
+  for (const r of others) { if (r.odometer < odo) prev = r; }
+  const distance = (prev && !isNaN(odo)) ? odo - prev.odometer : null;
+  const totalCost = (!isNaN(liters) && !isNaN(price)) ? liters * price : null;
+  const economy = (isFull && distance !== null && distance > 0 && !isNaN(liters) && liters > 0) ? distance / liters : null;
+
+  preview.innerHTML =
+    `区間距離：<b>${distance !== null ? fmtNum(distance) + ' km' : '（前回記録なし）'}</b><br>` +
+    `合計金額：<b>${totalCost !== null ? fmtNum(totalCost) + ' 円' : '--'}</b><br>` +
+    `燃費　　：<b>${economy !== null ? fmtNum(economy,1) + ' km/L' : (isFull ? '（計算不可）' : '対象外・満タンのみ計算')}</b>`;
+}
+function saveForm() {
+  const date = document.getElementById('fDate').value;
+  const odo = parseFloat(document.getElementById('fOdo').value);
+  const liters = parseFloat(document.getElementById('fLiters').value);
+  const price = parseFloat(document.getElementById('fPrice').value);
+  const isFull = document.getElementById('fFull').checked;
+
+  if (!date || isNaN(odo) || isNaN(liters) || isNaN(price) || liters <= 0 || price <= 0) {
+    showToast('入力内容を確認してください');
+    return;
+  }
+
+  if (editingId) {
+    const r = records.find(r => r.id === editingId);
+    Object.assign(r, { date, odometer: odo, liters, price, isFull });
+  } else {
+    records.push({ id: 'r' + Date.now() + Math.random().toString(16).slice(2,6), date, odometer: odo, liters, price, isFull });
+  }
+  persistLocal();
+  closeForm();
+  renderAll();
+  showToast('保存しました');
+  attemptBackup(false);
+}
+
+function deleteCurrent() {
+  if (!editingId) return;
+  records = records.filter(r => r.id !== editingId);
+  persistLocal();
+  closeForm();
+  renderAll();
+  showToast('削除しました');
+  attemptBackup(false);
+}
+
+/* ---------- Google Drive バックアップ ---------- */
+function initGoogle() {
+  if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: async (resp) => {
+      if (resp.error) { onBackupResult(false); return; }
+      try {
+        await driveUpload(resp.access_token);
+        onBackupResult(true);
+      } catch (e) { onBackupResult(false); }
+    }
+  });
+  renderBackupStatus();
+}
+
+function attemptBackup(interactive) {
+  if (!tokenClient) { renderBackupStatus(true); return; }
+  try {
+    tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+  } catch (e) { onBackupResult(false); }
+}
+
+async function driveUpload(token) {
+  const content = JSON.stringify({ updatedAt: new Date().toISOString(), records }, null, 2);
+  let fileId = localStorage.getItem(DRIVE_FILE_ID_KEY);
+
+  if (!fileId) {
+    const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name='${DRIVE_FILE_NAME}' and trashed=false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.files && data.files.length) fileId = data.files[0].id;
+  }
+
+  if (fileId) {
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: content
+    });
+    if (!res.ok) throw new Error('update failed: ' + res.status);
+    localStorage.setItem(DRIVE_FILE_ID_KEY, fileId);
+  } else {
+    const boundary = 'fuelogBoundary';
+    const metadata = { name: DRIVE_FILE_NAME, parents: [DRIVE_FOLDER_ID] };
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n` +
+      `--${boundary}--`;
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (!res.ok) throw new Error('create failed: ' + res.status);
+    const data = await res.json();
+    localStorage.setItem(DRIVE_FILE_ID_KEY, data.id);
+  }
+}
+
+function onBackupResult(ok) {
+  backupOK = ok;
+  if (ok) localStorage.setItem(DRIVE_LAST_BACKUP_KEY, new Date().toISOString());
+  renderBackupStatus();
+}
+
+function renderBackupStatus(needAuth) {
+  const bar = document.getElementById('backupBar');
+  const text = document.getElementById('backupText');
+  const last = localStorage.getItem(DRIVE_LAST_BACKUP_KEY);
+  if (needAuth) {
+    bar.classList.add('err');
+    text.textContent = 'タップしてGoogleドライブと連携';
+    return;
+  }
+  if (backupOK && last) {
+    bar.classList.remove('err');
+    const d = new Date(last);
+    text.textContent = `最終バックアップ：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  } else if (last) {
+    bar.classList.add('err');
+    const d = new Date(last);
+    text.textContent = `未送信あり（前回：${d.getMonth()+1}/${d.getDate()}）タップで再送信`;
+  } else {
+    bar.classList.add('err');
+    text.textContent = 'タップしてバックアップを開始';
+  }
+}
+function onBackupBarTap() { attemptBackup(true); }
+
+/* ---------- 初期化 ---------- */
+document.getElementById('fOdo').addEventListener('input', updatePreview);
+document.getElementById('fLiters').addEventListener('input', updatePreview);
+document.getElementById('fPrice').addEventListener('input', updatePreview);
+
+renderAll();
+renderBackupStatus();
+window.addEventListener('load', initGoogle);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+}
+</script>
+</body>
+</html>
