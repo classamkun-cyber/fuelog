@@ -56,18 +56,28 @@
   header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
   .car-name { font-size: 12px; color: #8fa6a4; line-height: 1.1; margin-top: -2px; }
 
-  /* ヘッダー右上のバックアップ状態・復元リンク（囲み無し・矢印無しのシンプル表示） */
+  /* ヘッダー右上のバックアップ状態・復元リンク（上下スワイプで切り替える小さなカルーセル） */
   .header-status {
     margin-left: auto;
     align-self: center;
     text-align: right;
+    overflow: hidden;
+    height: 14px;
+    touch-action: pan-x; /* 縦方向はJS側で処理し、横方向（＝下のホーム/履歴スワイプ）は邪魔しない */
+  }
+  .header-status-track { transition: transform .22s ease; }
+  .header-status-track .backup-bar,
+  .header-status-track .restore-link {
+    height: 14px;
+    line-height: 14px;
+    overflow: hidden;
   }
   .header-status .backup-bar {
     display: block;
     background: none;
     border: none;
     padding: 0;
-    margin-bottom: 3px;
+    margin: 0;
     font-size: 10px;
     color: #6f9793;
     cursor: pointer;
@@ -76,7 +86,7 @@
   .header-status .backup-bar.err { color: #e08a4a; }
   .header-status .backup-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #2fd3ae; margin-right: 4px; display: inline-block; }
   .header-status .backup-bar.err .dot { background: #e08a4a; }
-  .header-status .restore-link { font-size: 10px; padding: 0; text-align: right; white-space: nowrap; }
+  .header-status .restore-link { font-size: 10px; padding: 0; margin: 0; text-align: right; white-space: nowrap; }
   header.top .backup-bar.err .dot { background: #e08a4a; }
 
   /* ---- タブ本体（左右スライド切り替え） ---- */
@@ -340,14 +350,16 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.29</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.30</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
-    <div class="header-status">
-      <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
-        <span class="dot"></span><span id="backupText">未バックアップ</span>
+    <div class="header-status" id="headerStatus">
+      <div class="header-status-track" id="headerStatusTrack">
+        <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
+          <span class="dot"></span><span id="backupText">未バックアップ</span>
+        </div>
+        <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
       </div>
-      <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
     </div>
   </header>
 
@@ -981,7 +993,7 @@ function initSwipeNav() {
 
   app.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) { dragState = null; return; }
-    if (e.target.closest('.chart-scroll') || e.target.closest('.modal-overlay')) { dragState = null; return; }
+    if (e.target.closest('.chart-scroll') || e.target.closest('.modal-overlay') || e.target.closest('.header-status')) { dragState = null; return; }
     const t = e.touches[0];
     const current = document.getElementById('view-home').classList.contains('active') ? 'home' : 'history';
     const slot = viewport.offsetWidth + GAP_PX;
@@ -1030,6 +1042,56 @@ function initSwipeNav() {
   app.addEventListener('touchcancel', endDrag, { passive: true });
 }
 
+/* ---------- ヘッダー右上：バックアップ状態⇔復元リンクの上下スワイプ切り替え ---------- */
+let headerDrag = null;
+let headerSlideIndex = 0; // 0=バックアップ状態 / 1=復元リンク
+
+function initHeaderSwipe() {
+  const el = document.getElementById('headerStatus');
+  const track = document.getElementById('headerStatusTrack');
+
+  function slideHeight() { return track.firstElementChild.offsetHeight; }
+  function settle() {
+    track.style.transform = `translateY(${-headerSlideIndex * slideHeight()}px)`;
+  }
+
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { headerDrag = null; return; }
+    e.stopPropagation(); // 下のホーム/履歴スワイプ判定に渡さない
+    const t = e.touches[0];
+    headerDrag = { startY: t.clientY, baseY: -headerSlideIndex * slideHeight() };
+    track.style.transition = 'none';
+  }, { passive: true });
+
+  el.addEventListener('touchmove', (e) => {
+    if (!headerDrag) return;
+    e.stopPropagation();
+    e.preventDefault(); // ドラッグ中はページの縦スクロールを止めて指に追従させる
+    const t = e.touches[0];
+    const dy = t.clientY - headerDrag.startY;
+    const h = slideHeight();
+    let y = headerDrag.baseY + dy;
+    y = Math.max(-h, Math.min(0, y));
+    track.style.transform = `translateY(${y}px)`;
+  }, { passive: false });
+
+  const endHeaderDrag = (e) => {
+    if (!headerDrag) return;
+    e.stopPropagation();
+    track.style.transition = '';
+    const t = e.changedTouches[0];
+    const dy = t.clientY - headerDrag.startY;
+    if (Math.abs(dy) > 5) e.preventDefault(); // ドラッグ扱いなら合成クリックでタップ操作が誤発火しないように抑える
+    const threshold = slideHeight() / 3;
+    if (dy < -threshold) headerSlideIndex = 1;
+    else if (dy > threshold) headerSlideIndex = 0;
+    headerDrag = null;
+    settle();
+  };
+  el.addEventListener('touchend', endHeaderDrag, { passive: false });
+  el.addEventListener('touchcancel', endHeaderDrag, { passive: false });
+}
+
 /* ---------- 初期化 ---------- */
 document.getElementById('fOdo').addEventListener('input', updatePreview);
 document.getElementById('fLiters').addEventListener('input', updatePreview);
@@ -1037,6 +1099,7 @@ document.getElementById('fPrice').addEventListener('input', updatePreview);
 
 enableChartDrag();
 initSwipeNav();
+initHeaderSwipe();
 renderAll();
 renderBackupStatus();
 window.addEventListener('load', initGoogle);
