@@ -32,19 +32,29 @@
   /* ---- ヘッダー ---- */
   header.top {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
     margin-bottom: 18px;
+  }
+  header.top .app-icon {
+    height: 40px;
+    width: 40px;
+    display: block;
+    border-radius: 6px;
+    position: relative;
+    top: 2px;
   }
   header.top h1 {
     font-size: 19px;
     font-weight: 700;
+    line-height: 1.1;
     margin: 0;
     color: #7fe0d3;
     letter-spacing: 0.5px;
   }
   header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
-  .car-name { font-size: 12px; color: #8fa6a4; }
+  .car-name { font-size: 12px; color: #8fa6a4; line-height: 1.1; margin-top: -2px; }
 
   /* ---- タブ本体 ---- */
   .view { display: none; }
@@ -92,6 +102,15 @@
   .backup-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: #2fd3ae; margin-right: 6px; display:inline-block; }
   .backup-bar.err .dot { background: #e08a4a; }
 
+  .restore-link {
+    font-size: 11px;
+    color: #5c807c;
+    text-align: center;
+    padding: 4px 0 10px;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
   /* ---- 履歴：チャート ---- */
   .chart-box {
     background: #12262a;
@@ -127,6 +146,7 @@
   .rec-card .left .date { font-size: 12px; color: #7fa8a3; }
   .rec-card .left .row1 { font-size: 16px; font-weight: 700; color: #eafffb; margin-top: 2px; }
   .rec-card .left .row2 { font-size: 12px; color: #7fa8a3; margin-top: 4px; }
+  .rec-card .left .row3 { font-size: 12px; color: #7fa8a3; margin-top: 2px; }
   .rec-card .badge {
     font-size: 10px;
     background: #143a35;
@@ -288,8 +308,9 @@
 <div class="app">
 
   <header class="top">
+    <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>⛽ Fuelog <span class="ver">Ver.1.10</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.18</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
   </header>
@@ -330,6 +351,8 @@
       <span>📥 みんカラの過去データ（92件）を読み込む</span>
       <span>›</span>
     </div>
+
+    <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
   </section>
 
   <!-- ============ 履歴 ============ -->
@@ -511,7 +534,8 @@ function renderHistory() {
         <div class="left">
           <div class="date">${r.date}${r.isFull ? '<span class="badge">満タン</span>' : ''}</div>
           <div class="row1">${fmtNum(r.odometer)} km${r.distance !== null ? `（+${fmtNum(r.distance)}km）` : ''}</div>
-          <div class="row2">${fmtNum(r.liters,1)} L ・ ${fmtNum(r.price)} 円/L ・ ${fmtNum(r.totalCost)} 円${r.station ? ` ・ ${r.station}` : ''}</div>
+          <div class="row2">${fmtNum(r.liters,1)} L ・ ${fmtNum(r.price)} 円/L ・ ${fmtNum(r.totalCost)} 円</div>
+          ${r.station ? `<div class="row3">${r.station}</div>` : ''}
         </div>
         <div class="right">
           ${r.economy !== null
@@ -534,14 +558,16 @@ function renderChart(points) {
     wrap.innerHTML = `<div class="chart-empty">満タン給油のデータが2件以上たまるとグラフが表示されます</div>`;
     return;
   }
-  const H = 110, PAD_Y = 10, PAD_X = 16;
+  const H = 110, PAD_TOP = 20, PAD_BOTTOM = 10, PAD_X = 16;
   const vals = points.map(p => p.economy);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = (max - min) || 1;
   const W = Math.max(CHART_VISIBLE_POINTS * CHART_SPACING, PAD_X * 2 + (points.length - 1) * CHART_SPACING);
   const coords = points.map((p, i) => {
     const x = PAD_X + i * CHART_SPACING;
-    const y = H - PAD_Y - ((p.economy - min) / range) * (H - PAD_Y * 2);
+    // ラベル（数値）を点の上に出すぶん、上側の余白(PAD_TOP)を下側より広めに取って
+    // 最大値のラベルがグラフ上端で見切れないようにする
+    const y = PAD_TOP + (1 - (p.economy - min) / range) * (H - PAD_TOP - PAD_BOTTOM);
     return [x, y];
   });
   const path = coords.map((c,i) => (i===0?'M':'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
@@ -721,28 +747,44 @@ function deleteCurrent() {
 // これが無いと保存のたびに毎回Google認証をやり直してしまい、アカウント選択が連発してしまう。
 let cachedToken = null;
 let cachedTokenExpiry = 0;
+// バックアップ（アップロード）と復元（ダウンロード）を同じtokenClientで扱うため、
+// 認証完了後にどちらの処理をすべきかをここに覚えておく
+let pendingAction = 'backup'; // 'backup' | 'restore'
 
 function initGoogle() {
   if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    // 2026-09-25、drive.file から drive（フルアクセス）に変更。
+    // Claudian経由でDrive上のfuelog_data.jsonを直接編集することがあり、
+    // drive.fileスコープだとアプリ自身が作成したファイルしか見えず、
+    // 復元はおろかバックアップ時の既存ファイル検知もできなくなるため。
+    scope: 'https://www.googleapis.com/auth/drive',
     callback: async (resp) => {
-      if (resp.error) { onBackupResult(false); return; }
+      if (resp.error) {
+        if (pendingAction === 'restore') showToast('復元に失敗しました');
+        else onBackupResult(false);
+        return;
+      }
       cachedToken = resp.access_token;
       // expires_in（秒）が返ってこない場合は安全側で50分として扱う
       const expiresInMs = (resp.expires_in ? Number(resp.expires_in) : 3000) * 1000;
       cachedTokenExpiry = Date.now() + expiresInMs - 60000; // 60秒の余裕を持たせる
-      try {
-        await driveUpload(cachedToken);
-        onBackupResult(true);
-      } catch (e) { onBackupResult(false); }
+      if (pendingAction === 'restore') {
+        try { await driveRestore(cachedToken); } catch (e) { showToast('復元に失敗しました'); }
+      } else {
+        try {
+          await driveUpload(cachedToken);
+          onBackupResult(true);
+        } catch (e) { onBackupResult(false); }
+      }
     }
   });
   renderBackupStatus();
 }
 
 async function attemptBackup(interactive) {
+  pendingAction = 'backup';
   // 有効なトークンをまだ持っているなら、手動タップのときも認証をすっ飛ばしてそのままアップロードする
   // （このアプリは自動バックアップをやめて「タップした時だけ送る」方式にしたので、
   //   同じセッション内で何度かタップしても毎回アカウント選択が出ないようにするための措置）
@@ -758,6 +800,19 @@ async function attemptBackup(interactive) {
     tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
   } catch (e) { onBackupResult(false); }
 }
+
+async function attemptRestore(interactive) {
+  pendingAction = 'restore';
+  if (cachedToken && Date.now() < cachedTokenExpiry) {
+    try { await driveRestore(cachedToken); } catch (e) { showToast('復元に失敗しました'); }
+    return;
+  }
+  if (!tokenClient) { showToast('準備中です。少し待ってからもう一度試してください'); return; }
+  try {
+    tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+  } catch (e) { showToast('復元に失敗しました'); }
+}
+function onRestoreTap() { attemptRestore(true); }
 
 async function driveUpload(token) {
   const content = JSON.stringify({ updatedAt: new Date().toISOString(), records }, null, 2);
@@ -798,6 +853,41 @@ async function driveUpload(token) {
   }
 }
 
+async function driveRestore(token) {
+  const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!data.files || !data.files.length) {
+    showToast('Driveにバックアップファイルが見つかりません');
+    return;
+  }
+  const fileId = data.files[0].id;
+
+  const dl = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!dl.ok) throw new Error('download failed: ' + dl.status);
+  const json = await dl.json();
+  const incoming = Array.isArray(json.records) ? json.records : [];
+
+  const updatedAtStr = json.updatedAt ? new Date(json.updatedAt).toLocaleString('ja-JP') : '不明';
+  const ok = confirm(`現在の記録（${records.length}件）をすべて消して、Driveのバックアップ（${incoming.length}件・更新日時: ${updatedAtStr}）で置き換えます。\nよろしいですか？`);
+  if (!ok) return;
+
+  records = incoming;
+  persistLocal();
+  // このfileIdをアプリの「バックアップ先」として覚えておく（以後の手動バックアップも同じファイルへ）
+  localStorage.setItem(DRIVE_FILE_ID_KEY, fileId);
+  // 復元直後はローカルとDriveの内容が一致しているはずなので、そのままバックアップ済み扱いにする
+  localStorage.setItem(DRIVE_LAST_BACKUP_KEY, json.updatedAt || new Date().toISOString());
+  localStorage.setItem(DRIVE_SNAPSHOT_KEY, JSON.stringify(records));
+  renderAll();
+  renderBackupStatus();
+  showToast('Driveから復元しました');
+}
+
 function onBackupResult(ok) {
   if (ok) {
     localStorage.setItem(DRIVE_LAST_BACKUP_KEY, new Date().toISOString());
@@ -836,12 +926,43 @@ function renderBackupStatus(needAuth) {
 }
 function onBackupBarTap() { attemptBackup(true); }
 
+/* ---------- タブのスワイプ切り替え（ホーム⇔履歴） ---------- */
+// 履歴タブの燃費グラフは pointer イベントで独自に横ドラッグ操作を持っているため、
+// そちらとケンカしないよう chart-scroll 内から始まったタッチはここでは無視する。
+// 入力モーダル表示中も対象外にする。
+let swipeStart = null;
+const SWIPE_THRESHOLD_X = 50; // これ以上横に動いたらスワイプとみなす
+const SWIPE_MAX_Y = 60;       // これ以上縦に動いていたら（＝縦スクロール中）スワイプとはみなさない
+
+function initSwipeNav() {
+  const app = document.querySelector('.app');
+  app.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { swipeStart = null; return; }
+    const ignore = !!e.target.closest('.chart-scroll') || !!e.target.closest('.modal-overlay');
+    const t = e.touches[0];
+    swipeStart = { x: t.clientX, y: t.clientY, ignore };
+  }, { passive: true });
+
+  app.addEventListener('touchend', (e) => {
+    if (!swipeStart || swipeStart.ignore) { swipeStart = null; return; }
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStart.x;
+    const dy = t.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_X || Math.abs(dy) > SWIPE_MAX_Y) return;
+    const current = document.getElementById('view-home').classList.contains('active') ? 'home' : 'history';
+    if (dx < 0 && current === 'home') switchTab('history');       // 左スワイプ → 履歴へ
+    else if (dx > 0 && current === 'history') switchTab('home');  // 右スワイプ → ホームへ
+  }, { passive: true });
+}
+
 /* ---------- 初期化 ---------- */
 document.getElementById('fOdo').addEventListener('input', updatePreview);
 document.getElementById('fLiters').addEventListener('input', updatePreview);
 document.getElementById('fPrice').addEventListener('input', updatePreview);
 
 enableChartDrag();
+initSwipeNav();
 renderAll();
 renderBackupStatus();
 window.addEventListener('load', initGoogle);
