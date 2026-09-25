@@ -62,14 +62,14 @@
     align-self: center;
     text-align: right;
     overflow: hidden;
-    height: 14px;
+    height: 16px;
     touch-action: pan-x; /* 縦方向はJS側で処理し、横方向（＝下のホーム/履歴スワイプ）は邪魔しない */
   }
   .header-status-track { transition: transform .22s ease; }
   .header-status-track .backup-bar,
   .header-status-track .restore-link {
-    height: 14px;
-    line-height: 14px;
+    height: 16px;
+    line-height: 16px;
     overflow: hidden;
   }
   .header-status .backup-bar {
@@ -78,7 +78,7 @@
     border: none;
     padding: 0;
     margin: 0;
-    font-size: 10px;
+    font-size: 12px;
     color: #6f9793;
     cursor: pointer;
     white-space: nowrap;
@@ -86,8 +86,7 @@
   .header-status .backup-bar.err { color: #e08a4a; }
   .header-status .backup-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #2fd3ae; margin-right: 4px; display: inline-block; }
   .header-status .backup-bar.err .dot { background: #e08a4a; }
-  .header-status .restore-link { font-size: 10px; padding: 0; margin: 0; text-align: right; white-space: nowrap; }
-  header.top .backup-bar.err .dot { background: #e08a4a; }
+  .header-status .restore-link { font-size: 12px; padding: 0; margin: 0; text-align: right; white-space: nowrap; }
 
   /* ---- タブ本体（左右スライド切り替え） ---- */
   .view-viewport { overflow: hidden; }
@@ -350,7 +349,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.30</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.31</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
@@ -391,11 +390,6 @@
         <div class="label">今月の給油額</div>
         <div class="value" id="homeMonthCost">--<span class="unit">円</span></div>
       </div>
-    </div>
-
-    <div class="backup-bar" id="importBar" style="display:none;" onclick="runMigrationImport()">
-      <span>📥 みんカラの過去データ（92件）を読み込む</span>
-      <span>›</span>
     </div>
   </section>
 
@@ -479,11 +473,6 @@ const DRIVE_SNAPSHOT_KEY = 'fuelog_backup_snapshot';
 const CLIENT_ID = '835176944893-s1g4ve04l8th9fmu2sugq49rnenm34tt.apps.googleusercontent.com';
 const DRIVE_FOLDER_ID = '11NVDryMO2w1VQAyRkcgLqrrlWZ_5y9LD'; // アプリ開発/Fuelog（Google Drive）
 const DRIVE_FILE_NAME = 'fuelog_data.json';
-const MIGRATION_DONE_KEY = 'fuelog_migration_done';
-
-// みんカラ→Fuelio移行済みの92件（2023-09-30〜2026-09-22）。一度だけ読み込み用。
-// 単価が元データに無い18件は直前の単価で仮埋めし、スタンド名に「（単価は推定）」を付記。
-const MIGRATION_DATA = [{"id":"m001","date":"2023-09-30","odometer":212,"liters":37.4,"price":143,"station":"セルフステーション名張夏見","isFull":true},{"id":"m002","date":"2023-10-08","odometer":762,"liters":29.86,"price":140,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m003","date":"2023-10-18","odometer":1488,"liters":36.36,"price":140,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m004","date":"2023-10-27","odometer":2192,"liters":36.29,"price":137,"station":"セルフステーション名張夏見","isFull":true},{"id":"m005","date":"2023-11-09","odometer":2764,"liters":35.33,"price":137,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m006","date":"2023-11-24","odometer":3338,"liters":31.64,"price":137,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m007","date":"2023-12-02","odometer":3888,"liters":28.75,"price":135,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m008","date":"2023-12-04","odometer":4538,"liters":33.83,"price":135,"station":"（単価は推定）","isFull":true},{"id":"m009","date":"2023-12-04","odometer":4985,"liters":20.01,"price":135,"station":"セルフステーション名張夏見","isFull":true},{"id":"m010","date":"2023-12-16","odometer":5688,"liters":35.93,"price":135,"station":"セルフステーション名張夏見","isFull":true},{"id":"m011","date":"2023-12-26","odometer":6317,"liters":34.82,"price":135,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m012","date":"2024-01-04","odometer":6841,"liters":31.23,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m013","date":"2024-01-14","odometer":7338,"liters":27.81,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m014","date":"2024-01-26","odometer":7922,"liters":32.43,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m015","date":"2024-02-14","odometer":8381,"liters":29.86,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m016","date":"2024-03-01","odometer":8982,"liters":36.02,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m017","date":"2024-03-08","odometer":9597,"liters":33.26,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m018","date":"2024-03-17","odometer":10111,"liters":27.84,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m019","date":"2024-03-25","odometer":10613,"liters":29.42,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m020","date":"2024-04-06","odometer":11281,"liters":37.23,"price":138,"station":"セルフステーション名張夏見","isFull":true},{"id":"m021","date":"2024-04-14","odometer":11941,"liters":34.66,"price":138,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m022","date":"2024-04-29","odometer":12457,"liters":32.29,"price":140,"station":"セルフステーション名張夏見","isFull":true},{"id":"m023","date":"2024-05-11","odometer":12983,"liters":33.9,"price":140,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m024","date":"2024-05-23","odometer":13518,"liters":31.97,"price":142,"station":"セルフステーション名張夏見","isFull":true},{"id":"m025","date":"2024-06-02","odometer":14153,"liters":35.07,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m026","date":"2024-06-10","odometer":14739,"liters":32.05,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m027","date":"2024-06-21","odometer":15272,"liters":36.15,"price":142,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m028","date":"2024-07-01","odometer":15794,"liters":34.83,"price":142,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m029","date":"2024-07-12","odometer":16377,"liters":36.22,"price":144,"station":"セルフステーション名張夏見","isFull":true},{"id":"m030","date":"2024-07-21","odometer":16924,"liters":36.54,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m031","date":"2024-07-28","odometer":17514,"liters":35.99,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m032","date":"2024-08-10","odometer":18030,"liters":36.5,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m033","date":"2024-08-27","odometer":18524,"liters":35.89,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m034","date":"2024-09-09","odometer":19018,"liters":34.63,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m035","date":"2024-09-15","odometer":19501,"liters":28.81,"price":144,"station":"セルフステーション名張夏見（単価は推定）","isFull":true},{"id":"m036","date":"2024-09-25","odometer":19947,"liters":26.7,"price":144,"station":"セルフステーション名張夏見（単価は推定）","isFull":true},{"id":"m037","date":"2024-10-05","odometer":20607,"liters":34.3,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m038","date":"2024-10-21","odometer":21262,"liters":36.63,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m039","date":"2024-11-04","odometer":21918,"liters":34.37,"price":144,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m040","date":"2024-11-17","odometer":22546,"liters":36.82,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m041","date":"2024-11-29","odometer":23162,"liters":36.15,"price":144,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m042","date":"2024-12-14","odometer":23767,"liters":36.45,"price":147,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m043","date":"2024-12-26","odometer":24403,"liters":37.83,"price":152,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m044","date":"2025-01-11","odometer":24964,"liters":39.15,"price":152,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m045","date":"2025-01-28","odometer":25661,"liters":41.3,"price":152,"station":"スーパーセルフ名張SS（単価は推定）","isFull":true},{"id":"m046","date":"2025-02-12","odometer":26127,"liters":33.22,"price":147,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m047","date":"2025-03-03","odometer":26655,"liters":34.74,"price":147,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m048","date":"2025-03-18","odometer":27212,"liters":33.81,"price":147,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m049","date":"2025-04-01","odometer":27859,"liters":38.43,"price":145,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m050","date":"2025-04-12","odometer":28577,"liters":38.82,"price":149,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m051","date":"2025-04-29","odometer":29150,"liters":34,"price":147,"station":"郡山SS","isFull":true},{"id":"m052","date":"2025-05-21","odometer":29719,"liters":37.59,"price":144,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m053","date":"2025-06-03","odometer":30306,"liters":34.55,"price":135,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m054","date":"2025-06-14","odometer":30977,"liters":37.16,"price":130,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m055","date":"2025-07-05","odometer":31507,"liters":37.31,"price":133,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m056","date":"2025-07-21","odometer":32027,"liters":33.67,"price":136,"station":"JASS-PORT都祁","isFull":true},{"id":"m057","date":"2025-07-30","odometer":32519,"liters":30.09,"price":136,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m058","date":"2025-08-06","odometer":33205,"liters":38.12,"price":136,"station":"EneJet Dr.Drive 白山店（単価は推定）","isFull":true},{"id":"m059","date":"2025-08-20","odometer":33761,"liters":33.23,"price":136,"station":"郡山SS（単価は推定）","isFull":true},{"id":"m060","date":"2025-09-03","odometer":34227,"liters":30.12,"price":135,"station":"JASS-PORT桜井","isFull":true},{"id":"m061","date":"2025-09-15","odometer":34836,"liters":33.88,"price":135,"station":"JASS-PORT都祁（単価は推定）","isFull":true},{"id":"m062","date":"2025-10-01","odometer":35416,"liters":35.75,"price":137,"station":"JASS-PORT都祁","isFull":true},{"id":"m063","date":"2025-10-22","odometer":35949,"liters":36.15,"price":137,"station":"JASS-PORT都祁","isFull":true},{"id":"m064","date":"2025-11-05","odometer":36479,"liters":32.71,"price":135,"station":"JASS-PORT都祁","isFull":true},{"id":"m065","date":"2025-11-16","odometer":36885,"liters":20,"price":130,"station":"JASS-PORT都祁","isFull":true},{"id":"m066","date":"2025-11-26","odometer":37169,"liters":20.52,"price":132,"station":"JASS-PORT桜井","isFull":true},{"id":"m067","date":"2025-12-06","odometer":37672,"liters":29.57,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m068","date":"2025-12-18","odometer":38026,"liters":22.17,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m069","date":"2026-01-03","odometer":38485,"liters":32.4,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m070","date":"2026-01-14","odometer":38839,"liters":26.19,"price":128,"station":"JASS-PORT都祁","isFull":true},{"id":"m071","date":"2026-02-02","odometer":39337,"liters":36.44,"price":123,"station":"JASS-PORT桜井","isFull":true},{"id":"m072","date":"2026-02-26","odometer":39842,"liters":36.44,"price":126,"station":"JASS-PORT桜井","isFull":true},{"id":"m073","date":"2026-03-11","odometer":40281,"liters":28.52,"price":131,"station":"JASS-PORT桜井","isFull":true},{"id":"m074","date":"2026-03-23","odometer":40903,"liters":36.89,"price":148,"station":"セルフステーション名張夏見","isFull":true},{"id":"m075","date":"2026-04-01","odometer":41274,"liters":23.22,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m076","date":"2026-04-10","odometer":41689,"liters":25.37,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m077","date":"2026-04-23","odometer":42168,"liters":28.57,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m078","date":"2026-04-29","odometer":42594,"liters":23.73,"price":147,"station":"JASS-PORT都祁","isFull":true},{"id":"m079","date":"2026-05-11","odometer":43125,"liters":33.72,"price":143,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m080","date":"2026-05-16","odometer":43845,"liters":33.21,"price":148,"station":"新居浜坂井SS","isFull":true},{"id":"m081","date":"2026-05-18","odometer":44387,"liters":30.1,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m082","date":"2026-05-30","odometer":44917,"liters":34.73,"price":143,"station":"JASS-PORT都祁","isFull":true},{"id":"m083","date":"2026-06-10","odometer":45504,"liters":37.57,"price":142,"station":"JASS-PORT桜井","isFull":true},{"id":"m084","date":"2026-06-28","odometer":46042,"liters":35.58,"price":143,"station":"スーパーセルフ名張SS","isFull":true},{"id":"m085","date":"2026-07-06","odometer":46384,"liters":23.45,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m086","date":"2026-07-15","odometer":47097,"liters":38.39,"price":142,"station":"JASS-PORT桜井","isFull":true},{"id":"m087","date":"2026-07-25","odometer":47670,"liters":35.54,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m088","date":"2026-07-31","odometer":48206,"liters":31.45,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m089","date":"2026-08-14","odometer":48778,"liters":35.47,"price":145,"station":"JASS-PORT都祁","isFull":true},{"id":"m090","date":"2026-08-20","odometer":49426,"liters":39.02,"price":145,"station":"EneJet Dr.Drive 白山店","isFull":true},{"id":"m091","date":"2026-09-07","odometer":50656,"liters":33.49,"price":145,"station":"JASS-PORT都祁（単価は推定）","isFull":true},{"id":"m092","date":"2026-09-22","odometer":51248,"liters":37.05,"price":144,"station":"スーパーセルフ名張SS","isFull":true}];
 
 let records = loadRecords();
 let editingId = null;
@@ -671,22 +660,6 @@ function enableChartDrag() {
 function renderAll() {
   renderHome();
   renderHistory();
-  renderImportBar();
-}
-
-/* ---------- みんカラ過去データの一括インポート（一度きり） ---------- */
-function renderImportBar() {
-  const bar = document.getElementById('importBar');
-  bar.style.display = localStorage.getItem(MIGRATION_DONE_KEY) ? 'none' : 'flex';
-}
-function runMigrationImport() {
-  const ok = confirm(`現在の記録（${records.length}件）をすべて消して、みんカラの過去データ92件を読み込みます。\nよろしいですか？`);
-  if (!ok) return;
-  records = MIGRATION_DATA.map(r => ({ ...r }));
-  persistLocal();
-  localStorage.setItem(MIGRATION_DONE_KEY, '1');
-  renderAll();
-  showToast('92件読み込みました（ホーム画面のバックアップ帯をタップして送信してください）');
 }
 
 /* ---------- 入力フォーム ---------- */
