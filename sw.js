@@ -1,4 +1,4 @@
-const CACHE = 'fuelog-v1.32';
+const CACHE = 'fuelog-v1.33';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.png', './icon-192.png', './icon-180.png', './icon-header.png'];
 
 self.addEventListener('install', (e) => {

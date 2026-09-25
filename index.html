@@ -15,7 +15,19 @@
 <link rel="manifest" href="manifest.webmanifest">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    /* タップ・スワイプ操作中に指が少しズレて文字選択メニューが出てしまう対策
+       （売場ピッキング区間計測アプリで見つかった不具合と同じ対処） */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
   html { background: #0c1b1d; height: 100%; }
   body {
     margin: 0;
@@ -349,7 +361,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.32</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.33</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
