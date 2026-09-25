@@ -56,17 +56,30 @@
   header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
   .car-name { font-size: 12px; color: #8fa6a4; line-height: 1.1; margin-top: -2px; }
 
+  .header-status {
+    margin-left: auto;
+    align-self: center;
+  }
+  .header-status .backup-bar {
+    justify-content: flex-start;
+    margin-bottom: 6px;
+  }
+  .header-status .restore-link {
+    text-align: center;
+    padding: 0;
+  }
+
   /* ---- タブ本体（左右スライド切り替え） ---- */
   .view-viewport { overflow: hidden; }
   .view-track {
     display: flex;
-    width: 200%;
+    gap: 28px; /* 画面端の余白（.appの左右パディング14px×2相当）に合わせて、スライド中も2画面がくっつかないように */
     transition: transform .28s ease;
     touch-action: pan-y; /* 横方向のジェスチャーはJS側で処理し、縦スクロールはブラウザに任せる */
   }
   .view-track .view {
-    width: 50%;
-    flex: 0 0 50%;
+    flex: 0 0 100%;
+    width: 100%;
     min-width: 0;
   }
 
@@ -186,6 +199,7 @@
     flex: 1;
     background: none;
     border: none;
+    font-family: inherit; /* ボタンはブラウザ標準UIフォントになりがちなので、タイトルと同じフォントに揃える */
     color: #5c807c;
     font-size: 19px;
     font-weight: 700;
@@ -316,8 +330,14 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.23</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.26</span></h1>
       <div class="car-name">MAZDA2</div>
+    </div>
+    <div class="header-status">
+      <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
+        <span class="dot"></span><span id="backupText">未バックアップ</span>
+      </div>
+      <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
     </div>
   </header>
 
@@ -351,17 +371,10 @@
       </div>
     </div>
 
-    <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
-      <span><span class="dot"></span><span id="backupText">未バックアップ</span></span>
-      <span>↻</span>
-    </div>
-
     <div class="backup-bar" id="importBar" style="display:none;" onclick="runMigrationImport()">
       <span>📥 みんカラの過去データ（92件）を読み込む</span>
       <span>›</span>
     </div>
-
-    <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
   </section>
 
   <!-- ============ 履歴 ============ -->
@@ -497,9 +510,10 @@ function switchTab(name) {
   document.getElementById('view-history').classList.toggle('active', name === 'history');
   document.getElementById('tabHomeBtn').classList.toggle('active', name === 'home');
   document.getElementById('tabHistoryBtn').classList.toggle('active', name === 'history');
-  // view-track はホーム・履歴を横に並べて幅200%で保持しているので、
-  // 表示中のタブに応じて0 / -50%へスライドさせるだけで済む
-  document.getElementById('viewTrack').style.transform = name === 'home' ? 'translateX(0)' : 'translateX(-50%)';
+  // view-track はホーム・履歴を横に並べ、間にGAP_PXの余白を空けているので、
+  // 「表示幅＋余白」を1コマ分としてその分だけスライドさせる
+  const slot = document.querySelector('.view-viewport').offsetWidth + GAP_PX;
+  document.getElementById('viewTrack').style.transform = name === 'home' ? 'translateX(0)' : `translateX(-${slot}px)`;
   if (name === 'history') {
     // 履歴タブが非表示の間はグラフの幅が0扱いになり、直近位置へのスクロールがずれてしまうため
     // タブを開いたタイミングで改めて右端（直近）へ合わせ直す
@@ -948,21 +962,24 @@ function onBackupBarTap() { attemptBackup(true); }
 let dragState = null;
 const SWIPE_THRESHOLD_X = 50; // 離した時にこれ以上動いていたら切り替え、未満ならスナップバック
 const AXIS_LOCK_DIST = 6;     // 最初にこれだけ動いた時点で縦横どちらのジェスチャーか決める
+const GAP_PX = 28;            // .view-track の gap と合わせる（CSS側と値を揃えること）
 
 function initSwipeNav() {
   const app = document.querySelector('.app');
   const track = document.getElementById('viewTrack');
+  const viewport = document.querySelector('.view-viewport');
 
   app.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) { dragState = null; return; }
     if (e.target.closest('.chart-scroll') || e.target.closest('.modal-overlay')) { dragState = null; return; }
     const t = e.touches[0];
     const current = document.getElementById('view-home').classList.contains('active') ? 'home' : 'history';
+    const slot = viewport.offsetWidth + GAP_PX;
     dragState = {
       startX: t.clientX,
       startY: t.clientY,
-      basePercent: current === 'home' ? 0 : -50,
-      trackWidth: track.offsetWidth,
+      baseX: current === 'home' ? 0 : -slot,
+      slot,
       current,
       axis: null // 'x'（横スワイプ確定）/ 'y'（縦スクロールなので何もしない）
     };
@@ -982,9 +999,9 @@ function initSwipeNav() {
     }
     if (dragState.axis !== 'x') return;
 
-    let percent = dragState.basePercent + (dx / dragState.trackWidth) * 100;
-    percent = Math.max(-50, Math.min(0, percent)); // ホームより右／履歴より左へは行かせない
-    track.style.transform = `translateX(${percent}%)`;
+    let x = dragState.baseX + dx;
+    x = Math.max(-dragState.slot, Math.min(0, x)); // ホームより右／履歴より左へは行かせない
+    track.style.transform = `translateX(${x}px)`;
   }, { passive: true });
 
   const endDrag = (e) => {
