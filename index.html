@@ -56,6 +56,29 @@
   header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
   .car-name { font-size: 12px; color: #8fa6a4; line-height: 1.1; margin-top: -2px; }
 
+  /* ヘッダー右上のバックアップ状態・復元リンク（囲み無し・矢印無しのシンプル表示） */
+  .header-status {
+    margin-left: auto;
+    align-self: center;
+    text-align: right;
+  }
+  .header-status .backup-bar {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-bottom: 3px;
+    font-size: 10px;
+    color: #6f9793;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .header-status .backup-bar.err { color: #e08a4a; }
+  .header-status .backup-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #2fd3ae; margin-right: 4px; display: inline-block; }
+  .header-status .backup-bar.err .dot { background: #e08a4a; }
+  .header-status .restore-link { font-size: 10px; padding: 0; text-align: right; white-space: nowrap; }
+  header.top .backup-bar.err .dot { background: #e08a4a; }
+
   /* ---- タブ本体（左右スライド切り替え） ---- */
   .view-viewport { overflow: hidden; }
   .view-track {
@@ -317,8 +340,14 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.27</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.29</span></h1>
       <div class="car-name">MAZDA2</div>
+    </div>
+    <div class="header-status">
+      <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
+        <span class="dot"></span><span id="backupText">未バックアップ</span>
+      </div>
+      <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
     </div>
   </header>
 
@@ -352,17 +381,10 @@
       </div>
     </div>
 
-    <div class="backup-bar" id="backupBar" onclick="onBackupBarTap()">
-      <span><span class="dot"></span><span id="backupText">未バックアップ</span></span>
-      <span>↻</span>
-    </div>
-
     <div class="backup-bar" id="importBar" style="display:none;" onclick="runMigrationImport()">
       <span>📥 みんカラの過去データ（92件）を読み込む</span>
       <span>›</span>
     </div>
-
-    <div class="restore-link" onclick="onRestoreTap()">☁️ Driveの内容で復元する</div>
   </section>
 
   <!-- ============ 履歴 ============ -->
@@ -931,7 +953,7 @@ function renderBackupStatus(needAuth) {
   if (synced && last) {
     bar.classList.remove('err');
     const d = new Date(last);
-    text.textContent = `最終バックアップ：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    text.textContent = `最終Backup：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   } else if (last) {
     bar.classList.add('err');
     const d = new Date(last);
