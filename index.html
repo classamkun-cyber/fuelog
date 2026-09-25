@@ -349,7 +349,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.31</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.32</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
@@ -800,7 +800,10 @@ function initGoogle() {
         try {
           await driveUpload(cachedToken);
           onBackupResult(true);
-        } catch (e) { onBackupResult(false); }
+        } catch (e) {
+          if (e.message === 'cancelled') { showToast('バックアップを中止しました'); renderBackupStatus(); }
+          else onBackupResult(false);
+        }
       }
     }
   });
@@ -816,7 +819,10 @@ async function attemptBackup(interactive) {
     try {
       await driveUpload(cachedToken);
       onBackupResult(true);
-    } catch (e) { onBackupResult(false); }
+    } catch (e) {
+      if (e.message === 'cancelled') { showToast('バックアップを中止しました'); renderBackupStatus(); }
+      else onBackupResult(false);
+    }
     return;
   }
   if (!tokenClient) { renderBackupStatus(true); return; }
@@ -852,6 +858,26 @@ async function driveUpload(token) {
   }
 
   if (fileId) {
+    // 上書きする前に、Drive側の現在の件数より今の端末の件数が少ないままだと
+    // 意図せずDrive側の記録を減らしてしまう（例：ブラウザのサイトデータ削除で
+    // ローカルの記録が消えた直後に気づかずバックアップしてしまう、など）ため確認する
+    try {
+      const cur = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (cur.ok) {
+        const existing = await cur.json();
+        const existingCount = Array.isArray(existing.records) ? existing.records.length : 0;
+        if (existingCount > records.length) {
+          const ok = confirm(`Driveのバックアップには${existingCount}件ありますが、今この端末には${records.length}件しかありません。\nこのまま上書きすると、Drive側の記録が減ってしまいます。本当にバックアップしますか？`);
+          if (!ok) throw new Error('cancelled');
+        }
+      }
+    } catch (e) {
+      if (e.message === 'cancelled') throw e;
+      // 件数チェック自体が失敗した場合（回線不調など）は、チェックできないだけで処理は止めない
+    }
+
     const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
