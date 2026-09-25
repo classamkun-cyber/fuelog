@@ -34,7 +34,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 10px;
+    gap: 3px;
     margin-bottom: 18px;
   }
   header.top .app-icon {
@@ -56,10 +56,19 @@
   header.top h1 .ver { font-size: 10px; font-weight: 400; color: #4c6664; margin-left: 6px; }
   .car-name { font-size: 12px; color: #8fa6a4; line-height: 1.1; margin-top: -2px; }
 
-  /* ---- タブ本体 ---- */
-  .view { display: none; }
-  .view.active { display: block; animation: fade .15s ease; }
-  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+  /* ---- タブ本体（左右スライド切り替え） ---- */
+  .view-viewport { overflow: hidden; }
+  .view-track {
+    display: flex;
+    width: 200%;
+    transition: transform .28s ease;
+    touch-action: pan-y; /* 横方向のジェスチャーはJS側で処理し、縦スクロールはブラウザに任せる */
+  }
+  .view-track .view {
+    width: 50%;
+    flex: 0 0 50%;
+    min-width: 0;
+  }
 
   /* ---- サマリーカード（ホーム） ---- */
   .car-card {
@@ -169,7 +178,7 @@
     justify-content: center;
     background: #0f2427;
     border-top: 1px solid #1d3a3e;
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
     z-index: 5;
   }
   nav.tabbar .inner { width: 100%; max-width: 480px; display: flex; }
@@ -178,14 +187,11 @@
     background: none;
     border: none;
     color: #5c807c;
-    font-size: 12px;
-    padding: 6px 0 2px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 8px 0;
   }
-  nav.tabbar button .ic { font-size: 20px; }
   nav.tabbar button.active { color: #7fe0d3; }
 
   /* ---- FAB ---- */
@@ -310,10 +316,13 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.18</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.23</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
   </header>
+
+  <div class="view-viewport">
+  <div class="view-track" id="viewTrack">
 
   <!-- ============ ホーム ============ -->
   <section id="view-home" class="view active">
@@ -364,12 +373,15 @@
     <div id="recordList"></div>
   </section>
 
+  </div>
+  </div>
+
   <button class="fab" onclick="openForm()">＋</button>
 
   <nav class="tabbar">
     <div class="inner">
-      <button id="tabHomeBtn" class="active" onclick="switchTab('home')"><span class="ic">🏠</span>ホーム</button>
-      <button id="tabHistoryBtn" onclick="switchTab('history')"><span class="ic">📖</span>履歴</button>
+      <button id="tabHomeBtn" class="active" onclick="switchTab('home')">Home</button>
+      <button id="tabHistoryBtn" onclick="switchTab('history')">Log</button>
     </div>
   </nav>
 </div>
@@ -479,12 +491,15 @@ function computeEnriched() {
   });
 }
 
-/* ---------- タブ切り替え ---------- */
+/* ---------- タブ切り替え（左右スライド） ---------- */
 function switchTab(name) {
   document.getElementById('view-home').classList.toggle('active', name === 'home');
   document.getElementById('view-history').classList.toggle('active', name === 'history');
   document.getElementById('tabHomeBtn').classList.toggle('active', name === 'home');
   document.getElementById('tabHistoryBtn').classList.toggle('active', name === 'history');
+  // view-track はホーム・履歴を横に並べて幅200%で保持しているので、
+  // 表示中のタブに応じて0 / -50%へスライドさせるだけで済む
+  document.getElementById('viewTrack').style.transform = name === 'home' ? 'translateX(0)' : 'translateX(-50%)';
   if (name === 'history') {
     // 履歴タブが非表示の間はグラフの幅が0扱いになり、直近位置へのスクロールがずれてしまうため
     // タブを開いたタイミングで改めて右端（直近）へ合わせ直す
@@ -926,34 +941,66 @@ function renderBackupStatus(needAuth) {
 }
 function onBackupBarTap() { attemptBackup(true); }
 
-/* ---------- タブのスワイプ切り替え（ホーム⇔履歴） ---------- */
+/* ---------- タブのスワイプ切り替え（ホーム⇔履歴・指に追従） ---------- */
 // 履歴タブの燃費グラフは pointer イベントで独自に横ドラッグ操作を持っているため、
 // そちらとケンカしないよう chart-scroll 内から始まったタッチはここでは無視する。
 // 入力モーダル表示中も対象外にする。
-let swipeStart = null;
-const SWIPE_THRESHOLD_X = 50; // これ以上横に動いたらスワイプとみなす
-const SWIPE_MAX_Y = 60;       // これ以上縦に動いていたら（＝縦スクロール中）スワイプとはみなさない
+let dragState = null;
+const SWIPE_THRESHOLD_X = 50; // 離した時にこれ以上動いていたら切り替え、未満ならスナップバック
+const AXIS_LOCK_DIST = 6;     // 最初にこれだけ動いた時点で縦横どちらのジェスチャーか決める
 
 function initSwipeNav() {
   const app = document.querySelector('.app');
+  const track = document.getElementById('viewTrack');
+
   app.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) { swipeStart = null; return; }
-    const ignore = !!e.target.closest('.chart-scroll') || !!e.target.closest('.modal-overlay');
+    if (e.touches.length !== 1) { dragState = null; return; }
+    if (e.target.closest('.chart-scroll') || e.target.closest('.modal-overlay')) { dragState = null; return; }
     const t = e.touches[0];
-    swipeStart = { x: t.clientX, y: t.clientY, ignore };
+    const current = document.getElementById('view-home').classList.contains('active') ? 'home' : 'history';
+    dragState = {
+      startX: t.clientX,
+      startY: t.clientY,
+      basePercent: current === 'home' ? 0 : -50,
+      trackWidth: track.offsetWidth,
+      current,
+      axis: null // 'x'（横スワイプ確定）/ 'y'（縦スクロールなので何もしない）
+    };
   }, { passive: true });
 
-  app.addEventListener('touchend', (e) => {
-    if (!swipeStart || swipeStart.ignore) { swipeStart = null; return; }
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStart.x;
-    const dy = t.clientY - swipeStart.y;
-    swipeStart = null;
-    if (Math.abs(dx) < SWIPE_THRESHOLD_X || Math.abs(dy) > SWIPE_MAX_Y) return;
-    const current = document.getElementById('view-home').classList.contains('active') ? 'home' : 'history';
-    if (dx < 0 && current === 'home') switchTab('history');       // 左スワイプ → 履歴へ
-    else if (dx > 0 && current === 'history') switchTab('home');  // 右スワイプ → ホームへ
+  app.addEventListener('touchmove', (e) => {
+    if (!dragState) return;
+    const t = e.touches[0];
+    const dx = t.clientX - dragState.startX;
+    const dy = t.clientY - dragState.startY;
+
+    if (dragState.axis === null) {
+      if (Math.abs(dx) < AXIS_LOCK_DIST && Math.abs(dy) < AXIS_LOCK_DIST) return; // まだ判定できない
+      dragState.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (dragState.axis === 'y') return; // 縦スクロール優先。以後は素通しでネイティブスクロールに任せる
+      track.style.transition = 'none'; // ドラッグ中は指にそのまま追従させる（アニメーションなし）
+    }
+    if (dragState.axis !== 'x') return;
+
+    let percent = dragState.basePercent + (dx / dragState.trackWidth) * 100;
+    percent = Math.max(-50, Math.min(0, percent)); // ホームより右／履歴より左へは行かせない
+    track.style.transform = `translateX(${percent}%)`;
   }, { passive: true });
+
+  const endDrag = (e) => {
+    if (!dragState) return;
+    if (dragState.axis !== 'x') { dragState = null; return; }
+    track.style.transition = ''; // CSS側の.28sアニメーションに戻す
+    const t = e.changedTouches[0];
+    const dx = t.clientX - dragState.startX;
+    const current = dragState.current;
+    dragState = null;
+    if (dx <= -SWIPE_THRESHOLD_X && current === 'home') switchTab('history');
+    else if (dx >= SWIPE_THRESHOLD_X && current === 'history') switchTab('home');
+    else switchTab(current); // 閾値未満はスナップバック
+  };
+  app.addEventListener('touchend', endDrag, { passive: true });
+  app.addEventListener('touchcancel', endDrag, { passive: true });
 }
 
 /* ---------- 初期化 ---------- */
