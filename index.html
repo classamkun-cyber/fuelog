@@ -141,6 +141,10 @@
   .stat .value .trend.up { color: #2fd3ae; }
   .stat .value .trend.down { color: #e08a4a; }
   .stat .value .trend.flat { color: #7fa8a3; }
+  .count-wrap { display: flex; align-items: center; justify-content: space-between; }
+  .count-months { display: flex; flex-direction: column; gap: 3px; }
+  .count-months .cm-row { font-size: 11px; color: #7fa8a3; display: flex; gap: 5px; justify-content: flex-end; }
+  .count-months .cm-val { color: #eafffb; font-weight: 600; min-width: 14px; text-align: right; }
 
   .backup-bar {
     display: flex;
@@ -425,7 +429,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.37</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.38</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
@@ -455,7 +459,13 @@
       </div>
       <div class="stat">
         <div class="label">給油回数</div>
-        <div class="value" id="homeCount">--<span class="unit">回</span></div>
+        <div class="count-wrap">
+          <div class="value" id="homeCount">--<span class="unit">回</span></div>
+          <div class="count-months">
+            <div class="cm-row"><span class="cm-label">今月</span><span class="cm-val" id="homeCountThisMonth">--</span></div>
+            <div class="cm-row"><span class="cm-label">先月</span><span class="cm-val" id="homeCountLastMonth">--</span></div>
+          </div>
+        </div>
       </div>
       <div class="stat">
         <div class="label">前回の給油</div>
@@ -653,6 +663,17 @@ function renderHome() {
     : `--<span class="unit">km/L</span>`;
 
   document.getElementById('homeCount').innerHTML = `${fmtNum(records.length)}<span class="unit">回</span>`;
+  // 今月・先月の給油回数（満タンに関わらず記録全件でカウント。累計回数と同じ数え方）(2026-10-13)
+  {
+    const todayYm = todayStr().slice(0,7);
+    const [ty, tm] = todayYm.split('-').map(Number);
+    const lastMonthDate = new Date(ty, tm - 2, 1); // tmは1始まりなので、前月の1日を得るには-2
+    const lastYm = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}`;
+    const thisMonthCount = records.filter(r => r.date && r.date.slice(0,7) === todayYm).length;
+    const lastMonthCount = records.filter(r => r.date && r.date.slice(0,7) === lastYm).length;
+    document.getElementById('homeCountThisMonth').textContent = `${thisMonthCount}回`;
+    document.getElementById('homeCountLastMonth').textContent = `${lastMonthCount}回`;
+  }
 
   if (latest) {
     document.getElementById('homeLastDate').textContent = latest.date;
