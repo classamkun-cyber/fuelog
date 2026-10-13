@@ -137,6 +137,10 @@
   .stat .value { font-size: 20px; font-weight: 700; color: #eafffb; }
   .stat .value .unit { font-size: 11px; font-weight: 400; color: #7fa8a3; margin-left: 3px; }
   .stat .sub { font-size: 11px; color: #5c807c; margin-top: 4px; }
+  .stat .value .trend { font-size: 13px; font-weight: 700; margin-left: 5px; }
+  .stat .value .trend.up { color: #2fd3ae; }
+  .stat .value .trend.down { color: #e08a4a; }
+  .stat .value .trend.flat { color: #7fa8a3; }
 
   .backup-bar {
     display: flex;
@@ -421,7 +425,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.36</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.37</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
@@ -446,8 +450,8 @@
 
     <div class="grid2">
       <div class="stat">
-        <div class="label">平均燃費</div>
-        <div class="value" id="homeAvgEco">--<span class="unit">km/L</span></div>
+        <div class="label">平均燃費（直近5回）</div>
+        <div class="value" id="homeAvgEco">--<span class="unit">km/L</span><span class="trend" id="homeAvgEcoTrend"></span></div>
       </div>
       <div class="stat">
         <div class="label">給油回数</div>
@@ -629,9 +633,24 @@ function renderHome() {
 
   document.getElementById('homeOdo').innerHTML = latest ? `${fmtNum(latest.odometer)}<span class="unit">km</span>` : `--<span class="unit">km</span>`;
 
-  const ecoList = enriched.filter(r => r.economy !== null).map(r => r.economy);
-  const avgEco = ecoList.length ? ecoList.reduce((a,b)=>a+b,0) / ecoList.length : null;
-  document.getElementById('homeAvgEco').innerHTML = avgEco !== null ? `${fmtNum(avgEco,1)}<span class="unit">km/L</span>` : `--<span class="unit">km/L</span>`;
+  // 平均燃費は「直近5回（満タン給油で燃費が出た回のみ）」の平均。全期間平均だと最近の調子が見えにくいため(2026-10-13)
+  const RECENT_ECO_N = 5;
+  const ecoList = enriched.filter(r => r.economy !== null).map(r => r.economy); // 古い→新しい順
+  const recentEco = ecoList.slice(-RECENT_ECO_N);
+  const avgEco = recentEco.length ? recentEco.reduce((a,b)=>a+b,0) / recentEco.length : null;
+  let trendMark = '';
+  let trendClass = '';
+  if (ecoList.length >= RECENT_ECO_N * 2) {
+    const prevEco = ecoList.slice(-RECENT_ECO_N * 2, -RECENT_ECO_N);
+    const prevAvg = prevEco.reduce((a,b)=>a+b,0) / prevEco.length;
+    const diff = avgEco - prevAvg;
+    if (Math.abs(diff) < 0.05) { trendMark = '―'; trendClass = 'flat'; }
+    else if (diff > 0) { trendMark = '▲'; trendClass = 'up'; }
+    else { trendMark = '▼'; trendClass = 'down'; }
+  }
+  document.getElementById('homeAvgEco').innerHTML = avgEco !== null
+    ? `${fmtNum(avgEco,1)}<span class="unit">km/L</span><span class="trend ${trendClass}">${trendMark}</span>`
+    : `--<span class="unit">km/L</span>`;
 
   document.getElementById('homeCount').innerHTML = `${fmtNum(records.length)}<span class="unit">回</span>`;
 
