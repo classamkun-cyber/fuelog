@@ -288,6 +288,66 @@
     border-radius: 10px;
   }
   .field input:focus { outline: none; border-color: #2fd3ae; }
+  .field input.numeric { caret-color: transparent; cursor: pointer; }
+  .field input.numeric.active { border-color: #2fd3ae; }
+
+  /* ---- スタンド選択（プルダウン＋鉛筆で新規入力） ---- */
+  .station-row { display: flex; gap: 8px; }
+  .station-select {
+    flex: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; font-size: 16px; text-align: left;
+    color: #eafffb; background: #12262a; border: 1px solid #1d3a3e; border-radius: 10px;
+  }
+  .station-select .chev { color: #7fa8a3; font-size: 12px; margin-left: 8px; }
+  .station-pencil {
+    width: 44px; flex-shrink: 0;
+    background: #12262a; border: 1px solid #1d3a3e; border-radius: 10px;
+    color: #9fc7c1; font-size: 16px;
+  }
+  .station-dropdown {
+    display: none; margin-top: 6px;
+    background: #12262a; border: 1px solid #1d3a3e; border-radius: 10px;
+    max-height: 200px; overflow-y: auto;
+  }
+  .station-dropdown.show { display: block; }
+  .station-dropdown button {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 14px; background: none; border: none; border-bottom: 1px solid #1d3a3e;
+    color: #eafffb; font-size: 14px;
+  }
+  .station-dropdown button:last-child { border-bottom: none; }
+  .station-input {
+    width: 100%; margin-top: 8px;
+    padding: 12px 14px; font-size: 16px; color: #eafffb;
+    background: #12262a; border: 1px solid #1d3a3e; border-radius: 10px;
+  }
+
+  /* ---- アプリ内テンキー（走行距離・給油量・単価用） ---- */
+  .numpad {
+    position: sticky; bottom: 0; left: 0;
+    margin: 14px -18px calc(-22px - env(safe-area-inset-bottom));
+    padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
+    background: #0a1a1c; border-top: 1px solid #1d3a3e;
+    z-index: 5;
+  }
+  .numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 50px);
+    gap: 8px;
+  }
+  .numpad-grid button {
+    border: none; border-radius: 10px;
+    background: #12262a; color: #eafffb;
+    font-size: 18px; font-weight: 600;
+    touch-action: manipulation;
+  }
+  .numpad-grid button.np-bs,
+  .numpad-grid button.np-c { color: #9fc7c1; font-size: 15px; }
+  .numpad-grid button.np-next { grid-row: span 2; background: #2fd3ae; color: #05201c; }
+  .numpad-grid button.np-close { background: #1d3a3e; color: #9fc7c1; font-size: 14px; }
+
   .toggle-row {
     display: flex;
     align-items: center;
@@ -437,21 +497,38 @@
     </div>
     <div class="field">
       <label>総走行距離（オドメーター・km）</label>
-      <input type="number" id="fOdo" inputmode="decimal" placeholder="例）42150">
+      <input type="text" id="fOdo" class="numeric" readonly inputmode="none" placeholder="例）42150" onclick="selectField('fOdo')" onfocus="selectField('fOdo')">
     </div>
     <div class="field">
       <label>給油量（L）</label>
-      <input type="number" id="fLiters" inputmode="decimal" placeholder="例）28.5">
+      <input type="text" id="fLiters" class="numeric" readonly inputmode="none" placeholder="例）28.5" onclick="selectField('fLiters')" onfocus="selectField('fLiters')">
     </div>
     <div class="field">
       <label>燃料単価（円/L）</label>
-      <input type="number" id="fPrice" inputmode="decimal" placeholder="例）168">
+      <input type="text" id="fPrice" class="numeric" readonly inputmode="none" placeholder="例）168" onclick="selectField('fPrice')" onfocus="selectField('fPrice')">
     </div>
-    <div class="field">
+    <div class="field" id="stationField">
       <label>給油スタンド（任意）</label>
-      <input type="text" id="fStation" list="stationList" placeholder="例）ENEOS 津栄町SS" autocomplete="off">
-      <datalist id="stationList"></datalist>
+      <div class="station-row">
+        <button type="button" class="station-select" id="stationSelectBtn" onclick="toggleStationDropdown()">
+          <span id="stationSelectText">（履歴なし）</span>
+          <span class="chev">▾</span>
+        </button>
+        <button type="button" class="station-pencil" onclick="enterStationTextMode()" title="新しいスタンド名を入力">✎</button>
+      </div>
+      <div class="station-dropdown" id="stationDropdown"></div>
+      <input type="text" id="fStation" class="station-input" placeholder="新しいスタンド名を入力" autocomplete="off" style="display:none;">
     </div>
+
+    <div class="numpad" id="numpad" style="display:none;">
+      <div class="numpad-grid" id="numpadGrid">
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button class="np-bs" data-k="bs">⌫</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button class="np-next" data-k="next">次へ▶</button>
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button data-k="0">0</button><button data-k=".">.</button><button class="np-c" data-k="c">C</button><button class="np-close" data-k="close">▼</button>
+      </div>
+    </div>
+
     <div class="toggle-row">
       <span class="lb">満タン給油</span>
       <label class="switch">
@@ -686,8 +763,6 @@ function openForm(id) {
     document.getElementById('fOdo').value = r.odometer;
     document.getElementById('fLiters').value = r.liters;
     document.getElementById('fPrice').value = r.price;
-    document.getElementById('fStation').value = r.station || '';
-    document.getElementById('fFull').checked = r.isFull;
     deleteRow.style.display = 'block';
   } else {
     document.getElementById('modalTitle').textContent = '給油を記録';
@@ -695,22 +770,19 @@ function openForm(id) {
     document.getElementById('fOdo').value = '';
     document.getElementById('fLiters').value = '';
     document.getElementById('fPrice').value = '';
-    document.getElementById('fStation').value = '';
-    document.getElementById('fFull').checked = true;
     deleteRow.style.display = 'none';
   }
-  updateStationList();
+  setupStationField(editingId ? records.find(r => r.id === editingId).station : '');
   updatePreview();
   overlay.classList.add('show');
-  // 開いた直後に走行距離欄へフォーカス（編集時は中身を選択状態にして打ち直しやすく）
-  const odoInput = document.getElementById('fOdo');
-  requestAnimationFrame(() => {
-    odoInput.focus();
-    if (editingId) odoInput.select();
-  });
+  // 開いた直後は走行距離欄がデフォルトで選択された状態（＝テンキー表示）。
+  // 編集時は中身があるので、各欄とも最初の1打目はまるごと消してから打ち直せるようにする
+  touchedFields = new Set();
+  NUMERIC_FIELD_ORDER.forEach(id => delete document.getElementById(id).dataset.fresh);
+  requestAnimationFrame(() => selectField('fOdo'));
 }
 function updateStationList() {
-  // 使用回数が多い順にプルダウン候補を並べる（同数なら最近使った方を優先）
+  // 使用回数が多い順に並べる（同数なら最近使った方を優先）。プルダウン候補・デフォルト選択に使う
   const freq = {};
   const lastUsed = {};
   records.forEach(r => {
@@ -719,12 +791,112 @@ function updateStationList() {
     freq[name] = (freq[name] || 0) + 1;
     if (!lastUsed[name] || r.date > lastUsed[name]) lastUsed[name] = r.date;
   });
-  const names = Object.keys(freq).sort((a,b) => (freq[b]-freq[a]) || (lastUsed[b] > lastUsed[a] ? 1 : -1));
-  document.getElementById('stationList').innerHTML = names.map(n => `<option value="${n}">`).join('');
+  return Object.keys(freq).sort((a,b) => (freq[b]-freq[a]) || (lastUsed[b] > lastUsed[a] ? 1 : -1));
+}
+function setupStationField(currentStation) {
+  const names = updateStationList();
+  const dropdown = document.getElementById('stationDropdown');
+  dropdown.innerHTML = names.map(n => `<button type="button" onclick="selectStation(${JSON.stringify(n)})">${n}</button>`).join('');
+  dropdown.classList.remove('show');
+  document.querySelector('.station-row').style.display = 'flex';
+  document.getElementById('fStation').style.display = 'none';
+
+  const defaultName = (currentStation || '').trim() || names[0] || '';
+  if (!defaultName) {
+    // 履歴が1件も無い（初めての利用）→ 選べる候補が無いので、最初から新規入力モードにする
+    enterStationTextMode();
+    return;
+  }
+  document.getElementById('fStation').value = defaultName;
+  document.getElementById('stationSelectText').textContent = defaultName;
+}
+function toggleStationDropdown() {
+  document.getElementById('stationDropdown').classList.toggle('show');
+}
+function selectStation(name) {
+  document.getElementById('fStation').value = name;
+  document.getElementById('stationSelectText').textContent = name;
+  document.getElementById('stationDropdown').classList.remove('show');
+}
+function enterStationTextMode() {
+  document.getElementById('stationDropdown').classList.remove('show');
+  document.querySelector('.station-row').style.display = 'none';
+  const input = document.getElementById('fStation');
+  input.style.display = 'block';
+  input.focus();
 }
 function closeForm() {
   document.getElementById('modalOverlay').classList.remove('show');
+  hideNumpad();
 }
+
+/* ---------- アプリ内テンキー（走行距離・給油量・単価） ---------- */
+const NUMERIC_FIELD_ORDER = ['fOdo', 'fLiters', 'fPrice'];
+let activeField = null;
+let touchedFields = new Set();
+
+function selectField(id) {
+  if (activeField === id) { showNumpad(); return; }
+  activeField = id;
+  if (!touchedFields.has(id)) touchedFields.add(id); // 最初にこの欄に来た1回だけ、次の入力でまるごと上書きする
+  document.querySelectorAll('.field input.numeric').forEach(el => el.classList.toggle('active', el.id === id));
+  showNumpad();
+}
+function showNumpad() {
+  document.getElementById('numpad').style.display = 'block';
+}
+function hideNumpad() {
+  document.getElementById('numpad').style.display = 'none';
+  document.querySelectorAll('.field input.numeric').forEach(el => el.classList.remove('active'));
+  activeField = null;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+function goNextField() {
+  const idx = NUMERIC_FIELD_ORDER.indexOf(activeField);
+  if (idx === -1 || idx === NUMERIC_FIELD_ORDER.length - 1) {
+    // 最後（燃料単価）の次は、入力欄未選択・テンキー非表示の状態に戻す
+    hideNumpad();
+    return;
+  }
+  const nextId = NUMERIC_FIELD_ORDER[idx + 1];
+  activeField = nextId;
+  if (!touchedFields.has(nextId)) touchedFields.add(nextId);
+  document.querySelectorAll('.field input.numeric').forEach(el => el.classList.toggle('active', el.id === nextId));
+}
+function numpadPress(k) {
+  if (!activeField) return;
+  const el = document.getElementById(activeField);
+  let v = el.value;
+  const isFreshFocus = touchedFields.has(activeField) && el.dataset.fresh !== 'used';
+  if (k === 'next') { goNextField(); return; }
+  if (k === 'close') { hideNumpad(); return; }
+  if (k === 'bs') {
+    v = v.slice(0, -1);
+  } else if (k === 'c') {
+    v = '';
+  } else if (k === '.') {
+    if (isFreshFocus) v = '';
+    if (!v.includes('.')) v += '.';
+    el.dataset.fresh = 'used';
+  } else {
+    // 数字キー：編集中の値を初めて触る1打目は、既存の値をクリアしてから上書き
+    if (isFreshFocus) v = '';
+    v += k;
+    el.dataset.fresh = 'used';
+  }
+  el.value = v;
+  updatePreview();
+}
+(function initNumpad() {
+  const grid = document.getElementById('numpadGrid');
+  if (!grid) return;
+  grid.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('button[data-k]');
+    if (!btn) return;
+    e.preventDefault();
+    numpadPress(btn.dataset.k);
+  });
+})();
 function updatePreview() {
   const odo = parseFloat(document.getElementById('fOdo').value);
   const liters = parseFloat(document.getElementById('fLiters').value);
