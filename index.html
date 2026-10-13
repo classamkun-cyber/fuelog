@@ -421,7 +421,7 @@
   <header class="top">
     <img src="icon-header.png" alt="" class="app-icon">
     <div>
-      <h1>Fuelog <span class="ver">Ver.1.35</span></h1>
+      <h1>Fuelog <span class="ver">Ver.1.36</span></h1>
       <div class="car-name">MAZDA2</div>
     </div>
     <div class="header-status" id="headerStatus">
@@ -958,6 +958,9 @@ let cachedTokenExpiry = 0;
 // バックアップ（アップロード）と復元（ダウンロード）を同じtokenClientで扱うため、
 // 認証完了後にどちらの処理をすべきかをここに覚えておく
 let pendingAction = 'backup'; // 'backup' | 'restore'
+// 2026-10-13、まずサイレント（prompt:''）で取れるか試し、ダメな時だけ許可画面(consent)を出す方式に変更。
+// 毎回タップ時に無条件でconsentを強制していたのを改めた（ブラウザがGoogログイン中なら画面なしで通る場合がある）。
+let silentRetryDone = false;
 
 function initGoogle() {
   if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
@@ -970,6 +973,15 @@ function initGoogle() {
     scope: 'https://www.googleapis.com/auth/drive',
     callback: async (resp) => {
       if (resp.error) {
+        // サイレント試行が失敗した場合は1回だけ許可画面(consent)にフォールバック
+        if (!silentRetryDone) {
+          silentRetryDone = true;
+          try { tokenClient.requestAccessToken({ prompt: 'consent' }); } catch (e) {
+            if (pendingAction === 'restore') showToast('復元に失敗しました');
+            else onBackupResult(false);
+          }
+          return;
+        }
         if (pendingAction === 'restore') showToast('復元に失敗しました');
         else onBackupResult(false);
         return;
@@ -994,7 +1006,7 @@ function initGoogle() {
   renderBackupStatus();
 }
 
-async function attemptBackup(interactive) {
+async function attemptBackup() {
   pendingAction = 'backup';
   // 有効なトークンをまだ持っているなら、手動タップのときも認証をすっ飛ばしてそのままアップロードする
   // （このアプリは自動バックアップをやめて「タップした時だけ送る」方式にしたので、
@@ -1010,23 +1022,25 @@ async function attemptBackup(interactive) {
     return;
   }
   if (!tokenClient) { renderBackupStatus(true); return; }
+  silentRetryDone = false;
   try {
-    tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+    tokenClient.requestAccessToken({ prompt: '' });
   } catch (e) { onBackupResult(false); }
 }
 
-async function attemptRestore(interactive) {
+async function attemptRestore() {
   pendingAction = 'restore';
   if (cachedToken && Date.now() < cachedTokenExpiry) {
     try { await driveRestore(cachedToken); } catch (e) { showToast('復元に失敗しました'); }
     return;
   }
   if (!tokenClient) { showToast('準備中です。少し待ってからもう一度試してください'); return; }
+  silentRetryDone = false;
   try {
-    tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+    tokenClient.requestAccessToken({ prompt: '' });
   } catch (e) { showToast('復元に失敗しました'); }
 }
-function onRestoreTap() { attemptRestore(true); }
+function onRestoreTap() { attemptRestore(); }
 
 async function driveUpload(token) {
   const content = JSON.stringify({ updatedAt: new Date().toISOString(), records }, null, 2);
@@ -1158,7 +1172,7 @@ function renderBackupStatus(needAuth) {
     text.textContent = 'タップしてバックアップを開始';
   }
 }
-function onBackupBarTap() { attemptBackup(true); }
+function onBackupBarTap() { attemptBackup(); }
 
 /* ---------- タブのスワイプ切り替え（ホーム⇔履歴・指に追従） ---------- */
 // 履歴タブの燃費グラフは pointer イベントで独自に横ドラッグ操作を持っているため、
